@@ -8,7 +8,7 @@
 #include <iostream>
 
 void PlayerControl::updateMovement(entt::registry &registry, double dt, GLFWwindow *window) {
-    double xMove = 0.0, yMove = 0.0, zMove = 0.0;
+    double xMove = 0.0, yMove = 0.0, zMove = 0.0, multiplier = 1.0;
 
     if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS) xMove--;
     if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS) xMove++;
@@ -17,6 +17,7 @@ void PlayerControl::updateMovement(entt::registry &registry, double dt, GLFWwind
 
     if (glfwGetKey(window, GLFW_KEY_LEFT_CONTROL) == GLFW_PRESS) yMove--;
     if (glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS) yMove++;
+    if (glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS) multiplier = 3.0;
 
     auto view = registry.view<Components::Velocity, Components::DirectionPitchYaw, Components::PlayerControl>();
 
@@ -27,6 +28,8 @@ void PlayerControl::updateMovement(entt::registry &registry, double dt, GLFWwind
         if (registry.has<Components::TravelMaxSpeed>(entity)) {
             speed = registry.get<Components::TravelMaxSpeed>(entity).maxSpeed;
         }
+
+        speed *= multiplier;
 
         if (xMove != 0.0 || zMove != 0.0) {
             double localWalkYaw = atan2(-zMove, xMove);

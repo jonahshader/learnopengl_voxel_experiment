@@ -12,7 +12,8 @@ chunkManagement(vertexPath, fragmentPath),
 pMouseX(0.0),
 pMouseY(0.0),
 screenWidth(800),
-screenHeight(600)
+screenHeight(600),
+skyColor(0.5f, 0.6f, 0.7f)
 {
     // create player
     entt::entity player = registry.create();
@@ -21,7 +22,7 @@ screenHeight(600)
     registry.emplace<Components::ChunkPosition>(player, 0, 0, 0);
     registry.emplace<Components::DirectionPitchYaw>(player, M_PI, 0.0);
     registry.emplace<Components::PlayerControl>(player);
-    registry.emplace<Components::TravelMaxSpeed>(player, 50.0);
+    registry.emplace<Components::TravelMaxSpeed>(player, 25.0);
     registry.emplace<Components::CameraAttach>(player, 100.0);
 }
 
@@ -39,7 +40,7 @@ void World::run(double dt, GLFWwindow *window) {
 }
 
 void World::draw(GLFWwindow *window) {
-    chunkManagement.render(registry, screenWidth, screenHeight);
+    chunkManagement.render(registry, screenWidth, screenHeight, skyColor);
 }
 
 Shader &World::getShader() {
@@ -61,4 +62,8 @@ void World::updateMouse(double xpos, double ypos) {
 
 void World::updateScroll(double xoffset, double yoffset) {
 
+}
+
+const glm::vec3 &World::getSkyColor() const {
+    return skyColor;
 }

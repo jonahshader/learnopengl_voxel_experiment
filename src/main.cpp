@@ -82,6 +82,7 @@ int main() {
 //    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 
     glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MIN_FILTER, GL_NEAREST_MIPMAP_LINEAR);
+//    glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
     glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
     glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MAX_LEVEL, 4);
     glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_S, GL_REPEAT);
@@ -108,22 +109,27 @@ int main() {
 //    glSampler
     // render global config
     // render loop
+    double pTime = glfwGetTime();
+    double dt = 1/165.0;
     while(!glfwWindowShouldClose(window))
     {
         processInput(window);
         world.updateWindowSize(screenWidthGlobal, screenHeightGlobal);
         world.updateMouse(xMouseGlobal, yMouseGlobal);
         world.updateScroll(xScrollGlobal, yScrollGlobal);
-        world.run(1/165.0f, window);
+        world.run(dt, window);
 
 
-        glClearColor(0.5f, 0.5f, 0.75f, 1.0f);
+        glClearColor(world.getSkyColor().r, world.getSkyColor().g, world.getSkyColor().b, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
         world.draw(window);
 
         glfwSwapBuffers(window);
         glfwPollEvents();
+        double time = glfwGetTime();
+        dt = time - pTime;
+        pTime = time;
     }
 
     glfwTerminate();

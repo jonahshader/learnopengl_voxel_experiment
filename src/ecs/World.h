@@ -12,6 +12,7 @@
 #include <entt/entt.hpp>
 #include <ecs/Components.h>
 #include <glad/glad.h>
+#include <glm/glm.hpp>
 
 class World {
 public:
@@ -25,6 +26,7 @@ public:
     void updateScroll(double xoffset, double yoffset);
     Shader& getShader();
 
+    const glm::vec3 &getSkyColor() const;
 
 private:
     entt::registry registry;
@@ -33,6 +35,7 @@ private:
 
     double pMouseX, pMouseY;
     int screenWidth, screenHeight;
+    glm::vec3 skyColor;
 
 };
 

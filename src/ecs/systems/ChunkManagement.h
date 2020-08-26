@@ -16,6 +16,7 @@
 #include <other/Constants.h>
 #include <other/DataTypes.h>
 #include <graphics/Shader.h>
+#include <glm/glm.hpp>
 
 
 
@@ -25,7 +26,7 @@ public:
 
     entt::entity* getChunk(int xChunk, int yChunk, int zChunk); // returns nullptr if the chunk was not found
     void run(entt::registry& registry);
-    void render(entt::registry& registry, int screenWidth, int screenHeight);
+    void render(entt::registry& registry, int screenWidth, int screenHeight, const glm::vec3 &skyColor);
     static std::string chunkPositionToKey(int xChunk, int yChunk, int zChunk);
     static double worldPosChunkPosDist(Components::ChunkPosition &chunkPos, Components::Position &worldPos);
     static double worldPosChunkPosDist(int xc, int yc, int zc, double x, double y, double z);
@@ -34,8 +35,8 @@ public:
 private:
     const static int CHUNK_LOAD_RADIUS = 350; // this is in voxels, not chunks
     const static int CHUNK_UNLOAD_RADIUS = 360; // this is in voxels, not chunks
-    const static int MAX_BUFFERS_PER_FRAME = 8;
-    const static int MAX_GENERATES_PER_FRAME = 8;
+    const static int MAX_BUFFERS_PER_FRAME = 1;
+    const static int MAX_GENERATES_PER_FRAME = 1;
     const static int NUM_BYTES_PER_VERTEX = 8; // was 6
 
     std::unordered_map<std::string, entt::entity> chunkKeyToChunkEntity;
