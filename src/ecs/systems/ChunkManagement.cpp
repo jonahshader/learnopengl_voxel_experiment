@@ -4,7 +4,6 @@
 
 #include "ChunkManagement.h"
 
-#include <external/fastnoise/FastNoise.h>
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
 #include <glm/glm.hpp>
@@ -19,8 +18,11 @@ entt::registry* ChunkManagement::chunkCompareRegistry = nullptr;
 Components::Position ChunkManagement::chunkComparePos = {glm::dvec3(0.0)};
 
 ChunkManagement::ChunkManagement(const char* vertexPath, const char* fragmentPath) :
-        voxelShader(vertexPath, fragmentPath)
-{}
+        voxelShader(vertexPath, fragmentPath),
+        noise()
+{
+    noise.SetNoiseType(FastNoise::SimplexFractal);
+}
 
 
 std::string ChunkManagement::chunkPositionToKey(int xChunk, int yChunk, int zChunk) {
@@ -116,10 +118,13 @@ void ChunkManagement::run(entt::registry &registry) {
                         if (generates < MAX_GENERATES_PER_FRAME) {
                             registry.emplace<Components::ChunkData>(chunkEntity); // add chunk data
                             chunkStatus.status = Components::ChunkStatusEnum::GENERATING_OR_LOADING;
-//                            threadLaunchPointer = new std::thread(generateChunk, std::ref(registry), chunkEntity);
                             auto &chunkData = registry.get<Components::ChunkData>(chunkEntity);
-                            new std::thread(generateChunk, std::ref(chunkStatus), std::ref(chunkPosition), std::ref(chunkData));
-//                            generateChunk(std::ref(chunkStatus), std::ref(chunkPosition), std::ref(chunkData));
+//                            threadLaunchPointer = new std::thread(generateChunk, std::ref(chunkStatus), std::ref(chunkPosition), std::ref(chunkData));
+
+//                            std::thread coolThread(generateChunk, std::ref(chunkStatus), std::ref(chunkPosition), std::ref(chunkData), std::ref(noise));
+//                            coolThread.detach();
+//                            threadLaunchPointer->detach();
+                            generateChunk(std::ref(chunkStatus), std::ref(chunkPosition), std::ref(chunkData), std::ref(noise));
                             ++generates;
                         }
                         break;
@@ -129,8 +134,8 @@ void ChunkManagement::run(entt::registry &registry) {
                         registry.emplace<Components::ChunkMeshData>(chunkEntity);
                         chunkStatus.status = Components::ChunkStatusEnum::MESH_GENERATING;
                         auto [chunkData, chunkMeshData] = registry.get<Components::ChunkData, Components::ChunkMeshData>(chunkEntity);
-                        new std::thread(generateMesh, std::ref(chunkStatus), std::ref(chunkPosition), std::ref(chunkData), std::ref(chunkMeshData));
-//                        generateMesh(chunkStatus, chunkPosition, chunkData, chunkMeshData);
+//                        new std::thread(generateMesh, std::ref(chunkStatus), std::ref(chunkPosition), std::ref(chunkData), std::ref(chunkMeshData));
+                        generateMesh(chunkStatus, chunkPosition, chunkData, chunkMeshData);
                     }
                         break;
                     case Components::ChunkStatusEnum::MESH_GENERATED:
@@ -216,7 +221,8 @@ bool ChunkManagement::chunkCompareFun(entt::entity chunk1, entt::entity chunk2) 
     return dist1 < dist2;
 }
 
-void ChunkManagement::generateChunk(Components::ChunkStatus &chunkStatus, Components::ChunkPosition &chunkPosition, Components::ChunkData &chunkData) {
+void ChunkManagement::generateChunk(Components::ChunkStatus &chunkStatus, Components::ChunkPosition &chunkPosition,
+                                    Components::ChunkData &chunkData, FastNoise &n) {
 
 //    float* noiseSet = noise->GetSimplexFractalSet(chunkPosition.x * CHUNK_SIZE,
 //                                                  chunkPosition.y * CHUNK_SIZE,
@@ -225,11 +231,8 @@ void ChunkManagement::generateChunk(Components::ChunkStatus &chunkStatus, Compon
 //                                                  chunkPosition.y * CHUNK_SIZE + CHUNK_SIZE,
 //                                                  chunkPosition.z * CHUNK_SIZE + CHUNK_SIZE);
 
-    FastNoise testNoise;
-    testNoise.SetNoiseType(FastNoise::SimplexFractal);
-
     // convert float data to voxel data
-//#pragma omp parallel for
+#pragma omp parallel for
     for (int i = 0; i < VOXELS_PER_CHUNK; ++i) {
         // convert z y x to x y z indices for FastNoiseSIMD library
         int x = i % CHUNK_SIZE;
@@ -238,7 +241,7 @@ void ChunkManagement::generateChunk(Components::ChunkStatus &chunkStatus, Compon
         x += chunkPosition.x * CHUNK_SIZE;
         y += chunkPosition.y * CHUNK_SIZE;
         z += chunkPosition.z * CHUNK_SIZE;
-        float noiseOut = testNoise.GetNoise(x, y, z);
+        float noiseOut = n.GetNoise(x, y, z);
 //        std::cout << noiseOut << std::endl;
         chunkData.data[i] = noiseOut > 0.0 ? 1 : 0;
     }
@@ -280,7 +283,7 @@ void ChunkManagement::generateMesh(Components::ChunkStatus &chunkStatus, Compone
 
     // after generating, change state
     chunkStatus.status = Components::ChunkStatusEnum::MESH_GENERATED;
-    std::cout << "Done generating mesh" << std::endl;
+//    std::cout << "Done generating mesh" << std::endl;
 }
 
 void ChunkManagement::addSlice(std::vector<unsigned char> &mesh, Components::ChunkData &voxelData,
@@ -608,7 +611,7 @@ void ChunkManagement::genVboVaoAndBuffer(entt::registry& registry, entt::entity 
 
     // delete mesh data as it is no longer needed
     registry.remove<Components::ChunkMeshData>(chunkEntity);
-    std::cout << "Done buffering mesh" << std::endl;
+//    std::cout << "Done buffering mesh" << std::endl;
 }
 
 void ChunkManagement::render(entt::registry &registry, int screenWidth, int screenHeight) {

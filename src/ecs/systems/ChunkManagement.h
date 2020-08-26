@@ -11,6 +11,7 @@
 #include <vector>
 #include <thread>
 #include <entt/entt.hpp>
+#include <external/fastnoise/FastNoise.h>
 #include <ecs/Components.h>
 #include <other/Constants.h>
 #include <other/DataTypes.h>
@@ -33,14 +34,16 @@ public:
 private:
     const static int CHUNK_LOAD_RADIUS = 300; // this is in voxels, not chunks
     const static int CHUNK_UNLOAD_RADIUS = 350; // this is in voxels, not chunks
-    const static int MAX_BUFFERS_PER_FRAME = 1;
-    const static int MAX_GENERATES_PER_FRAME = 1;
+    const static int MAX_BUFFERS_PER_FRAME = 8;
+    const static int MAX_GENERATES_PER_FRAME = 8;
     const static int NUM_BYTES_PER_VERTEX = 8; // was 6
 
     std::unordered_map<std::string, entt::entity> chunkKeyToChunkEntity;
     std::vector<entt::entity> chunks;
 
     Shader voxelShader;
+
+    FastNoise noise;
 
     const static int MAX_CHUNK_BUFFERS_PER_FRAME = 8;
 
@@ -53,7 +56,7 @@ private:
     static bool chunkCompareFun(entt::entity chunk1, entt::entity chunk2);
     // assumes chunk entity already has ChunkData, ChunkStatus,
     std::thread* threadLaunchPointer;
-    static void generateChunk(Components::ChunkStatus &chunkStatus, Components::ChunkPosition &chunkPosition, Components::ChunkData &chunkData);
+    static void generateChunk(Components::ChunkStatus &chunkStatus, Components::ChunkPosition &chunkPosition, Components::ChunkData &chunkData, FastNoise &n);
 
     // assumes chunk entity already has ChunkData, ChunkStatus, ChunkMesh
     static void generateMesh(Components::ChunkStatus &chunkStatus, Components::ChunkPosition &chunkPosition,
