@@ -23,3 +23,13 @@ unsigned char Components::chunkDataGetAirBounds(Components::ChunkData &data, int
 std::string Components::dvecToString(glm::dvec3 &vec) {
     return "x: " + std::to_string(vec.x) + " y: " + std::to_string(vec.y) + " z: " + std::to_string(vec.z);
 }
+
+bool Components::voxelIsTouchingAir(ChunkData &data, int x, int y, int z) {
+    return
+        chunkDataGetAirBounds(data, x + 1, y + 0, z + 0) == 0 ||
+        chunkDataGetAirBounds(data, x - 1, y + 0, z + 0) == 0 ||
+        chunkDataGetAirBounds(data, x + 0, y + 1, z + 0) == 0 ||
+        chunkDataGetAirBounds(data, x + 0, y - 1, z + 0) == 0 ||
+        chunkDataGetAirBounds(data, x + 0, y + 0, z + 1) == 0 ||
+        chunkDataGetAirBounds(data, x + 0, y + 0, z - 1) == 0;
+}

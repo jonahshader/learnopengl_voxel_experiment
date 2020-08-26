@@ -22,6 +22,14 @@ ChunkManagement::ChunkManagement(const char* vertexPath, const char* fragmentPat
         noise()
 {
     noise.SetNoiseType(FastNoise::SimplexFractal);
+    noise.SetFrequency(0.0025);
+    noise.SetFractalOctaves(7);
+
+    // buffer cube data
+    glGenBuffers(1, &cubeVbo);
+    glBindBuffer(GL_ARRAY_BUFFER, cubeVbo);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(cubeData), cubeData, GL_STATIC_DRAW);
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
 }
 
 
@@ -192,12 +200,13 @@ void ChunkManagement::tryRemoveChunk(entt::registry &registry, entt::entity chun
     if (registry.has<Components::ChunkOpenGL>(chunkEntity)) {
         auto &chunkgl = registry.get<Components::ChunkOpenGL>(chunkEntity);
         glDeleteVertexArrays(1, &chunkgl.vao);
-        glDeleteBuffers(1, &chunkgl.vbo);
+        glDeleteBuffers(1, &chunkgl.offsetsVbo);
+        glDeleteBuffers(1, &chunkgl.texturesVbo);
+        glDeleteBuffers(1, &chunkgl.brightnessesVbo);
     }
     // remove from registry
     registry.destroy(chunkEntity);
 }
-
 
 double ChunkManagement::worldPosChunkPosDist(Components::ChunkPosition &chunkPos, Components::Position &worldPos) {
     glm::dvec3 chunkWorldPos(chunkPos.x * CHUNK_SIZE + (CHUNK_SIZE / 2.),
@@ -241,10 +250,27 @@ void ChunkManagement::generateChunk(Components::ChunkStatus &chunkStatus, Compon
         x += chunkPosition.x * CHUNK_SIZE;
         y += chunkPosition.y * CHUNK_SIZE;
         z += chunkPosition.z * CHUNK_SIZE;
-        float noiseOut = n.GetNoise(x, y, z);
+        float noiseOut = n.GetNoise(x, y, z) - y * 0.005f;
 //        std::cout << noiseOut << std::endl;
-        chunkData.data[i] = noiseOut > 0.0 ? 1 : 0;
+        if (noiseOut > 0.2) {
+            chunkData.data[i] = 3;
+        } else if (noiseOut > 0.1) {
+            chunkData.data[i] = 2;
+        } else if (noiseOut > 0.0) {
+            chunkData.data[i] = 1;
+        } else {
+            chunkData.data[i] = 0;
+        }
+//        chunkData.data[i] = noiseOut > 0.0 ? 1 : 0;
     }
+
+    for (int z = 0; z < CHUNK_SIZE; z++) for (int y = 0; y < CHUNK_SIZE - 1; y++) for (int x = 0; x < CHUNK_SIZE; x++) {
+        if (chunkData.data[x + (y + 1) * CHUNK_SIZE + z * CHUNK_SIZE * CHUNK_SIZE] == 1 ||
+        chunkData.data[x + (y + 1) * CHUNK_SIZE + z * CHUNK_SIZE * CHUNK_SIZE] == 2) {
+            chunkData.data[x + y * CHUNK_SIZE + z * CHUNK_SIZE * CHUNK_SIZE] = 2;
+        }
+    }
+
 
     //update state to GENERATED_OR_LOADED
     chunkStatus.status = Components::ChunkStatusEnum::GENERATED_OR_LOADED;
@@ -253,33 +279,120 @@ void ChunkManagement::generateChunk(Components::ChunkStatus &chunkStatus, Compon
 
 void ChunkManagement::generateMesh(Components::ChunkStatus &chunkStatus, Components::ChunkPosition &chunkPosition,
                                    Components::ChunkData &chunkData, Components::ChunkMeshData &chunkMeshData) {
-    for (int i = 0; i < CHUNK_SIZE; i++) {
-        // TODO might be just i instead of i + 1
-        addSlice(chunkMeshData.mesh, chunkData, DataTypes::Axis::X, false, i + 1);
-        addSlice(chunkMeshData.mesh, chunkData, DataTypes::Axis::X, true, i + 1);
-        addSlice(chunkMeshData.mesh, chunkData, DataTypes::Axis::Y, false, i + 1);
-        addSlice(chunkMeshData.mesh, chunkData, DataTypes::Axis::Y, true, i + 1);
-        addSlice(chunkMeshData.mesh, chunkData, DataTypes::Axis::Z, false, i + 1);
-        addSlice(chunkMeshData.mesh, chunkData, DataTypes::Axis::Z, true, i + 1);
+
+    bool meshed[CHUNK_SIZE * CHUNK_SIZE * CHUNK_SIZE] = {false};
+
+    for (int z = 0; z < CHUNK_SIZE; ++z) {
+        for (int y = 0; y < CHUNK_SIZE; ++y) {
+            for (int x = 0; x < CHUNK_SIZE; ++x) {
+                if (!meshed[x + y * CHUNK_SIZE + z * CHUNK_SIZE * CHUNK_SIZE]) {
+                    auto material = Components::chunkDataGet(chunkData, x, y, z);
+                    if (material != 0 && Components::voxelIsTouchingAir(chunkData, x, y, z)) {
+//                    if (material != 0) {
+                        int xSize = 0;
+                        int ySize = 1;
+                        int zSize = 1;
+
+                        int xCurrent = x;
+
+                        while (!meshed[xCurrent + y * CHUNK_SIZE + z * CHUNK_SIZE * CHUNK_SIZE] &&
+                        Components::chunkDataGetAirBounds(chunkData, xCurrent, y, z) == material &&
+                        Components::voxelIsTouchingAir(chunkData, xCurrent, y, z)) {
+//                        Components::chunkDataGetAirBounds(chunkData, xCurrent, y, z) == material) {
+                            ++xCurrent;
+                            ++xSize;
+                        }
+                        for (int yl = y + 1; yl < CHUNK_SIZE; ++yl) {
+                            for (int xl = x; xl < x + xSize; ++xl) {
+                                if (!meshed[xl + yl * CHUNK_SIZE + z * CHUNK_SIZE * CHUNK_SIZE] &&
+                                Components::chunkDataGetAirBounds(chunkData, xl, yl, z) == material &&
+                                    Components::voxelIsTouchingAir(chunkData, xl, yl, z)) {
+//                                if (!meshed[xl + yl * CHUNK_SIZE + z * CHUNK_SIZE * CHUNK_SIZE] &&
+//                                Components::chunkDataGetAirBounds(chunkData, xl, yl, z) == material) {
+                                } else {
+                                    goto exitLoops;
+                                }
+                            }
+                            ++ySize;
+                        }
+                       exitLoops:
+                        for (int yl = y; yl < y + ySize; ++yl) {
+                            for (int xl = x; xl < x + xSize; ++xl) {
+                                meshed[xl + yl * CHUNK_SIZE + z * CHUNK_SIZE * CHUNK_SIZE] = true;
+                            }
+                        }
+
+                        // make mesh
+                        chunkMeshData.brightnesses.emplace_back(15);
+
+                        switch (material) {
+                            case 1:
+                                chunkMeshData.textures.emplace_back(1);
+                                chunkMeshData.textures.emplace_back(1);
+                                chunkMeshData.textures.emplace_back(1);
+                                chunkMeshData.textures.emplace_back(1);
+                                chunkMeshData.textures.emplace_back(0);
+                                chunkMeshData.textures.emplace_back(2);
+                                break;
+                            case 2:
+                                chunkMeshData.textures.emplace_back(2);
+                                chunkMeshData.textures.emplace_back(2);
+                                chunkMeshData.textures.emplace_back(2);
+                                chunkMeshData.textures.emplace_back(2);
+                                chunkMeshData.textures.emplace_back(2);
+                                chunkMeshData.textures.emplace_back(2);
+                                break;
+                            case 3:
+                                chunkMeshData.textures.emplace_back(3);
+                                chunkMeshData.textures.emplace_back(3);
+                                chunkMeshData.textures.emplace_back(3);
+                                chunkMeshData.textures.emplace_back(3);
+                                chunkMeshData.textures.emplace_back(3);
+                                chunkMeshData.textures.emplace_back(3);
+                                break;
+                        }
+
+
+                        chunkMeshData.offsets.emplace_back(x);
+                        chunkMeshData.offsets.emplace_back(y);
+                        chunkMeshData.offsets.emplace_back(z);
+
+                        chunkMeshData.dims.emplace_back(xSize);
+                        chunkMeshData.dims.emplace_back(ySize);
+                        chunkMeshData.dims.emplace_back(zSize);
+//                        std::cout << x << " " << y << " " << z << " " << xSize << " " << ySize << " " << zSize << std::endl;
+//                        std::cout << "made something" << std::endl;
+                    }
+                }
+            }
+        }
     }
 
-//    addSlice(chunkMeshData.mesh, chunkData, DataTypes::Axis::Z, false, 5);
+/*    for (int z = 0; z < CHUNK_SIZE; z++) {
+        for (int y = 0; y < CHUNK_SIZE; y++) {
+            for (int x = 0; x < CHUNK_SIZE; x++) {
+                if (Components::chunkDataGet(chunkData, x, y, z) == 1 &&
+                Components::voxelIsTouchingAir(chunkData, x, y, z)) {
+                    chunkMeshData.brightnesses.emplace_back(15);
 
-//    Vertex v1{}, v2{}, v3{}, v4{};
-//    v1.asNum = makeVertex(0, 0, 0,0, 0, 0, 0, 15);
-//    v2.asNum = makeVertex(0, 32, 0, 0, 1, 0, 0, 15);
-//    v3.asNum = makeVertex(32, 32, 0, 1, 1, 0, 0, 15);
-//    v4.asNum = makeVertex(32, 0, 0, 1, 0, 0, 0, 15);
-//
-//    // top left tri
-//    addVertexToMesh(chunkMeshData.mesh, v1, NUM_BYTES_PER_VERTEX);
-//    addVertexToMesh(chunkMeshData.mesh, v2, NUM_BYTES_PER_VERTEX);
-//    addVertexToMesh(chunkMeshData.mesh, v4, NUM_BYTES_PER_VERTEX);
-//    // bottom right tri
-//    addVertexToMesh(chunkMeshData.mesh, v2, NUM_BYTES_PER_VERTEX);
-//    addVertexToMesh(chunkMeshData.mesh, v3, NUM_BYTES_PER_VERTEX);
-//    addVertexToMesh(chunkMeshData.mesh, v4, NUM_BYTES_PER_VERTEX);
+                    chunkMeshData.textures.emplace_back(1);
+                    chunkMeshData.textures.emplace_back(1);
+                    chunkMeshData.textures.emplace_back(1);
+                    chunkMeshData.textures.emplace_back(1);
+                    chunkMeshData.textures.emplace_back(0);
+                    chunkMeshData.textures.emplace_back(2);
 
+                    chunkMeshData.offsets.emplace_back(x);
+                    chunkMeshData.offsets.emplace_back(y);
+                    chunkMeshData.offsets.emplace_back(z);
+
+                    chunkMeshData.dims.emplace_back(1);
+                    chunkMeshData.dims.emplace_back(1);
+                    chunkMeshData.dims.emplace_back(1);
+                }
+            }
+        }
+    }*/
 
     // after generating, change state
     chunkStatus.status = Components::ChunkStatusEnum::MESH_GENERATED;
@@ -537,71 +650,74 @@ void ChunkManagement::addVertexToMesh(std::vector<unsigned char> &mesh, Vertex v
 }
 
 void ChunkManagement::genVboVaoAndBuffer(entt::registry& registry, entt::entity chunkEntity) {
+    // clear errors
+//    while (glGetError() != 0)
+//    std::cout << "before: " << glGetError() << std::endl;
+
     registry.emplace<Components::ChunkOpenGL>(chunkEntity);
     auto [gl, mesh] = registry.get<Components::ChunkOpenGL, Components::ChunkMeshData>(chunkEntity);
     // set numTriangles for rendering later
-    gl.numTriangles = mesh.mesh.size() / (NUM_BYTES_PER_VERTEX * 3);
+    gl.numInstances = mesh.brightnesses.size();
 
     glGenVertexArrays(1, &gl.vao);
-    glGenBuffers(1, &gl.vbo);
+    glGenBuffers(1, &gl.offsetsVbo);
+    glGenBuffers(1, &gl.dimsVbo);
+    glGenBuffers(1, &gl.texturesVbo);
+    glGenBuffers(1, &gl.brightnessesVbo);
 
-    glBindBuffer(GL_ARRAY_BUFFER, gl.vbo);
-    glBufferData(GL_ARRAY_BUFFER, mesh.mesh.size() * sizeof(unsigned char), mesh.mesh.data(), GL_STATIC_DRAW);
+    glBindBuffer(GL_ARRAY_BUFFER, gl.offsetsVbo);
+    glBufferData(GL_ARRAY_BUFFER, mesh.offsets.size() * sizeof(unsigned char), mesh.offsets.data(), GL_STATIC_DRAW);
+
+    glBindBuffer(GL_ARRAY_BUFFER, gl.dimsVbo);
+    glBufferData(GL_ARRAY_BUFFER, mesh.dims.size() * sizeof(unsigned char), mesh.dims.data(), GL_STATIC_DRAW);
+
+    glBindBuffer(GL_ARRAY_BUFFER, gl.texturesVbo);
+    glBufferData(GL_ARRAY_BUFFER, mesh.textures.size() * sizeof(unsigned char), mesh.textures.data(), GL_STATIC_DRAW);
+
+    glBindBuffer(GL_ARRAY_BUFFER, gl.brightnessesVbo);
+    glBufferData(GL_ARRAY_BUFFER, mesh.brightnesses.size() * sizeof(unsigned char), mesh.brightnesses.data(), GL_STATIC_DRAW);
+
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
 
     glBindVertexArray(gl.vao);
-    /**
-    name | bits | offset
-    x      6      0
-    y      6      6
-    z      6      12
-    tx     6      18
-    ty     6      24
-    n      3      30
-    tex    8      33
-    b      4      41
-    */
-//    // xyz
-//    glVertexAttribIPointer(0, 1, GL_UNSIGNED_BYTE, NUM_BYTES_PER_VERTEX * sizeof(unsigned char), (void*)0);
-//    glVertexAttribIPointer(1, 1, GL_UNSIGNED_BYTE, NUM_BYTES_PER_VERTEX * sizeof(unsigned char), (void*)6);
-//    glVertexAttribIPointer(2, 1, GL_UNSIGNED_BYTE, NUM_BYTES_PER_VERTEX * sizeof(unsigned char), (void*)12);
-//    // tx ty n
-//    glVertexAttribIPointer(3, 1, GL_UNSIGNED_BYTE, NUM_BYTES_PER_VERTEX * sizeof(unsigned char), (void*)18);
-//    glVertexAttribIPointer(4, 1, GL_UNSIGNED_BYTE, NUM_BYTES_PER_VERTEX * sizeof(unsigned char), (void*)24);
-//    glVertexAttribIPointer(5, 1, GL_UNSIGNED_BYTE, NUM_BYTES_PER_VERTEX * sizeof(unsigned char), (void*)30);
-//    // tex b
-//    glVertexAttribIPointer(6, 1, GL_UNSIGNED_BYTE, NUM_BYTES_PER_VERTEX * sizeof(unsigned char), (void*)33);
-//    glVertexAttribIPointer(7, 1, GL_UNSIGNED_BYTE, NUM_BYTES_PER_VERTEX * sizeof(unsigned char), (void*)41);
 
-//    // xyz
-//    glVertexAttribIPointer(0, 1, GL_UNSIGNED_BYTE, NUM_BYTES_PER_VERTEX * sizeof(unsigned char), (void*)0);
-//    glVertexAttribIPointer(1, 1, GL_UNSIGNED_BYTE, NUM_BYTES_PER_VERTEX * sizeof(unsigned char), (void*)8);
-//    glVertexAttribIPointer(2, 1, GL_UNSIGNED_BYTE, NUM_BYTES_PER_VERTEX * sizeof(unsigned char), (void*)16);
-//    // tx ty n
-//    glVertexAttribIPointer(3, 1, GL_UNSIGNED_BYTE, NUM_BYTES_PER_VERTEX * sizeof(unsigned char), (void*)24);
-//    glVertexAttribIPointer(4, 1, GL_UNSIGNED_BYTE, NUM_BYTES_PER_VERTEX * sizeof(unsigned char), (void*)32);
-//    glVertexAttribIPointer(5, 1, GL_UNSIGNED_BYTE, NUM_BYTES_PER_VERTEX * sizeof(unsigned char), (void*)40);
-//    // tex b
-//    glVertexAttribIPointer(6, 1, GL_UNSIGNED_BYTE, NUM_BYTES_PER_VERTEX * sizeof(unsigned char), (void*)48);
-//    glVertexAttribIPointer(7, 1, GL_UNSIGNED_BYTE, NUM_BYTES_PER_VERTEX * sizeof(unsigned char), (void*)56);
-
-
-    // xyz
-    glVertexAttribIPointer(0, 3, GL_UNSIGNED_BYTE, NUM_BYTES_PER_VERTEX * sizeof(unsigned char), (void*)0);
-    // tx ty n
-    glVertexAttribIPointer(1, 2, GL_UNSIGNED_BYTE, NUM_BYTES_PER_VERTEX * sizeof(unsigned char), (void*)24);
-    glVertexAttribIPointer(2, 1, GL_UNSIGNED_BYTE, NUM_BYTES_PER_VERTEX * sizeof(unsigned char), (void*)40);
-    // tex b
-    glVertexAttribIPointer(3, 1, GL_UNSIGNED_BYTE, NUM_BYTES_PER_VERTEX * sizeof(unsigned char), (void*)48);
-    glVertexAttribIPointer(4, 1, GL_UNSIGNED_BYTE, NUM_BYTES_PER_VERTEX * sizeof(unsigned char), (void*)56);
-
+    glBindBuffer(GL_ARRAY_BUFFER, cubeVbo);
+    // cube xyz
+    glVertexAttribPointer(0, 3, GL_FLOAT, false, 6 * sizeof(float), (void*)0);
+    // cube tex
+    glVertexAttribPointer(1, 2, GL_FLOAT, false, 6 * sizeof(float), (void*)(3 * sizeof(float)));
+    // cube norm
+    glVertexAttribPointer(2, 1, GL_FLOAT, false, 6 * sizeof(float), (void*)(5 * sizeof(float)));
     glEnableVertexAttribArray(0);
     glEnableVertexAttribArray(1);
     glEnableVertexAttribArray(2);
+
+    // offset
+    glBindBuffer(GL_ARRAY_BUFFER, gl.offsetsVbo);
+    glVertexAttribIPointer(3, 3, GL_UNSIGNED_BYTE, 3 * sizeof(unsigned char), (void*)0);
     glEnableVertexAttribArray(3);
+    glVertexAttribDivisor(3, 1);
+
+    // dims
+    glBindBuffer(GL_ARRAY_BUFFER, gl.dimsVbo);
+    glVertexAttribIPointer(4, 3, GL_UNSIGNED_BYTE, 3 * sizeof(unsigned char), (void*)0);
     glEnableVertexAttribArray(4);
-//    glEnableVertexAttribArray(5);
-//    glEnableVertexAttribArray(6);
-//    glEnableVertexAttribArray(7);
+    glVertexAttribDivisor(4, 1);
+
+    // textures
+    glBindBuffer(GL_ARRAY_BUFFER, gl.texturesVbo);
+
+    for (int i = 0; i < 6; i++) {
+        glVertexAttribIPointer(5 + i, 1, GL_UNSIGNED_BYTE, 6 * sizeof(unsigned char), (void*)i);
+        glEnableVertexAttribArray(5 + i );
+        glVertexAttribDivisor(5 + i, 1);
+    }
+
+    // brightnesses
+    glBindBuffer(GL_ARRAY_BUFFER, gl.brightnessesVbo);
+    glVertexAttribIPointer(11, 1, GL_UNSIGNED_BYTE, 1 * sizeof(unsigned char), (void*)0);
+    glEnableVertexAttribArray(11);
+    glVertexAttribDivisor(11, 1);
 
     // unbind buffer i guess
     glBindBuffer(GL_ARRAY_BUFFER, 0);
@@ -611,7 +727,6 @@ void ChunkManagement::genVboVaoAndBuffer(entt::registry& registry, entt::entity 
 
     // delete mesh data as it is no longer needed
     registry.remove<Components::ChunkMeshData>(chunkEntity);
-//    std::cout << "Done buffering mesh" << std::endl;
 }
 
 void ChunkManagement::render(entt::registry &registry, int screenWidth, int screenHeight) {
@@ -637,13 +752,12 @@ void ChunkManagement::render(entt::registry &registry, int screenWidth, int scre
     if (playerFound) {
         auto [playerCam, playerPos, playerChunkPos, playerDir] = registry.get<Components::CameraAttach, Components::Position, Components::ChunkPosition, Components::DirectionPitchYaw>(player);
 
-        glm::mat4 projection = glm::perspective(glm::radians((float) playerCam.fov), screenWidth / (float) screenHeight, 0.5f, 600.0f);
-//        glm::mat4 projection = glm::ortho(-500.f, 500.f, -500.f, 500.f, 0.1f, 100.0f);
+        glm::mat4 projection = glm::perspective(glm::radians((float) playerCam.fov), screenWidth / (float) screenHeight, 0.2f, 600.0f);
 
 //        glm::mat4 view = glm::translate(glm::mat4(1.0f), glm::vec3((float) -(playerPos.pos.x - playerChunkPos.x * CHUNK_SIZE), (float) -(playerPos.pos.y - playerChunkPos.y * CHUNK_SIZE), (float) -(playerPos.pos.z - playerChunkPos.z * CHUNK_SIZE)));
         glm::mat4 view = glm::rotate(projection, (float) playerDir.pitch, glm::vec3(-1.0f, 0.0f, 0.0f));
         view = glm::rotate(view, (float) playerDir.yaw, glm::vec3(0.0f, 1.0f, 0.0f));
-        view = glm::translate(view, glm::vec3((float) -(playerPos.pos.x), (float) -(playerPos.pos.y), (float) -(playerPos.pos.z)));
+        view = glm::translate(view, glm::vec3((float) -(playerPos.pos.x - playerChunkPos.x * CHUNK_SIZE), (float) -(playerPos.pos.y - playerChunkPos.y * CHUNK_SIZE), (float) -(playerPos.pos.z - playerChunkPos.z * CHUNK_SIZE)));
 
 
         voxelShader.use();
@@ -651,17 +765,19 @@ void ChunkManagement::render(entt::registry &registry, int screenWidth, int scre
 
         auto renderableChunks = registry.view<Components::ChunkPosition, Components::ChunkOpenGL>();
 
+
+
         // render visible chunks
         for (auto c : renderableChunks) {
             auto [chunkPos, chunkGL] = renderableChunks.get<Components::ChunkPosition, Components::ChunkOpenGL>(c);
 
-            if (chunkGL.numTriangles > 0) {
-//                std::cout << "Rendering " << chunkGL.numTriangles << " triangles." << std::endl;
-//                voxelShader.setVec3i("chunkPos", chunkPos.x - playerChunkPos.x, chunkPos.y - playerChunkPos.y, chunkPos.z - playerChunkPos.z);
-                voxelShader.setVec3i("chunkPos", chunkPos.x, chunkPos.y, chunkPos.z);
+            if (chunkGL.numInstances > 0) {
+//                std::cout << "Rendering " << chunkGL.numInstances << " instances." << std::endl;
+                voxelShader.setVec3i("chunkPos", chunkPos.x - playerChunkPos.x, chunkPos.y - playerChunkPos.y, chunkPos.z - playerChunkPos.z);
+//                voxelShader.setVec3i("chunkPos", chunkPos.x, chunkPos.y, chunkPos.z);
 //                std::cout << "cx: " << chunkPos.x << " cy: " << chunkPos.y << " cz: " << chunkPos.z << std::endl;
                 glBindVertexArray(chunkGL.vao);
-                glDrawArrays(GL_TRIANGLES, 0, chunkGL.numTriangles);
+                glDrawArraysInstanced(GL_TRIANGLES, 0, 36, chunkGL.numInstances);
                 glBindVertexArray(0);
             }
         }

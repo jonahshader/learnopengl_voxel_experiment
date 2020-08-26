@@ -29,6 +29,7 @@ public:
     static unsigned char chunkDataGet(ChunkData &data, int x, int y, int z);
     static unsigned char chunkDataGetAirBounds(ChunkData &data, int x, int y, int z);
     static void chunkDataSet(ChunkData &data, unsigned char value, int x, int y, int z);
+    static bool voxelIsTouchingAir(ChunkData &data, int x, int y, int z);
 
 
     enum ChunkStatusEnum {
@@ -46,7 +47,10 @@ public:
     };
 
     struct ChunkMeshData {
-        std::vector<unsigned char> mesh;
+        std::vector<unsigned char> offsets;
+        std::vector<unsigned char> dims;
+        std::vector<unsigned char> textures;
+        std::vector<unsigned char> brightnesses;
     };
 
     struct ChunkPosition {
@@ -56,9 +60,12 @@ public:
     };
 
     struct ChunkOpenGL {
-        unsigned int vbo;
+        unsigned int offsetsVbo;
+        unsigned int dimsVbo;
+        unsigned int texturesVbo;
+        unsigned int brightnessesVbo;
         unsigned int vao;
-        unsigned int numTriangles;
+        unsigned int numInstances;
     };
 
     struct ChunkEntities {

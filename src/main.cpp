@@ -4,6 +4,7 @@
 #include <stb_image.h>
 
 #include <iostream>
+#include <vector>
 
 #include <ecs/World.h>
 
@@ -25,6 +26,7 @@ int main() {
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+//    glfwWindowHint(GLFW_SAMPLES, 32);
 
     GLFWwindow* window = glfwCreateWindow(800, 600, "LearnOpenGL", NULL, NULL);
     if (window == NULL)
@@ -48,6 +50,9 @@ int main() {
 
     glEnable(GL_DEPTH_TEST);
     glEnable(GL_CULL_FACE);
+//    glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+//    glEnable(GL_DEBUG_OUTPUT);
+//    glEnable(GL_MULTISAMPLE);
 
 
     // set texture unit
@@ -57,7 +62,13 @@ int main() {
     int textureWidth, textureHeight, nrChannels;
 //    stbi_set_flip_vertically_on_load(true);
 
-    unsigned char *textureData = stbi_load("textures/spritesheet.jpg", &textureWidth, &textureHeight, &nrChannels, 0);
+    std::vector<unsigned char*> textures;
+    //TODO: possible rare bug where textures are not tightly packed. might need to switch to unsigned char** instead of vector
+    textures.emplace_back(stbi_load("textures/spritesheet_strip_vertical.jpg", &textureWidth, &textureHeight, &nrChannels, 0));
+//    textures.emplace_back(stbi_load("textures/grass_top.jpg", &textureWidth, &textureHeight, &nrChannels, 0));
+//    textures.emplace_back(stbi_load("textures/grass_to_dirt_side.jpg", &textureWidth, &textureHeight, &nrChannels, 0));
+//    textures.emplace_back(stbi_load("textures/dirt.jpg", &textureWidth, &textureHeight, &nrChannels, 0));
+//    textures.emplace_back(stbi_load("textures/stone.jpg", &textureWidth, &textureHeight, &nrChannels, 0));
 
     // create opengl texture
     unsigned int texture;
@@ -76,13 +87,16 @@ int main() {
     glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_S, GL_REPEAT);
     glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_T, GL_REPEAT);
 
-    if (textureData) {
-        glTexImage3D(GL_TEXTURE_2D_ARRAY, 0, GL_RGB, 16, 16, 6, 0, GL_RGB, GL_UNSIGNED_BYTE, textureData);
+    if (textures[0]) {
+        glTexImage3D(GL_TEXTURE_2D_ARRAY, 0, GL_RGB, 16, 16, 4, 0, GL_RGB, GL_UNSIGNED_BYTE, textures[0]);
         glGenerateMipmap(GL_TEXTURE_2D_ARRAY);
     } else {
         std::cout << "Failed to load texture" << std::endl;
     }
-    stbi_image_free(textureData);
+    for (auto t : textures) {
+        stbi_image_free(t);
+    }
+
 
 
 

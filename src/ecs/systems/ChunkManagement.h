@@ -32,8 +32,8 @@ public:
     Shader &getShader();
 
 private:
-    const static int CHUNK_LOAD_RADIUS = 300; // this is in voxels, not chunks
-    const static int CHUNK_UNLOAD_RADIUS = 350; // this is in voxels, not chunks
+    const static int CHUNK_LOAD_RADIUS = 350; // this is in voxels, not chunks
+    const static int CHUNK_UNLOAD_RADIUS = 360; // this is in voxels, not chunks
     const static int MAX_BUFFERS_PER_FRAME = 8;
     const static int MAX_GENERATES_PER_FRAME = 8;
     const static int NUM_BYTES_PER_VERTEX = 8; // was 6
@@ -45,7 +45,138 @@ private:
 
     FastNoise noise;
 
-    const static int MAX_CHUNK_BUFFERS_PER_FRAME = 8;
+    unsigned int cubeVbo;
+
+    const float cubeData[6 * 6 * (3 + 2 + 1)] = {
+            // pos, tex, norm
+            0.f, 0.f, 1.f,  0.f, 1.f,  0.f,
+            1.f, 0.f, 1.f,  1.f, 1.f,  0.f,
+            1.f, 1.f, 1.f,  1.f, 0.f,  0.f,
+            0.f, 0.f, 1.f,  0.f, 1.f,  0.f,
+            1.f, 1.f, 1.f,  1.f, 0.f,  0.f,
+            0.f, 1.f, 1.f,  0.f, 0.f,  0.f,
+
+            1.f, 0.f, 1.f,  0.f, 1.f,  1.f,
+            1.f, 0.f, 0.f,  1.f, 1.f,  1.f,
+            1.f, 1.f, 0.f,  1.f, 0.f,  1.f,
+            1.f, 0.f, 1.f,  0.f, 1.f,  1.f,
+            1.f, 1.f, 0.f,  1.f, 0.f,  1.f,
+            1.f, 1.f, 1.f,  0.f, 0.f,  1.f,
+
+            1.f, 0.f, 0.f,  0.f, 1.f,  2.f,
+            0.f, 0.f, 0.f,  1.f, 1.f,  2.f,
+            0.f, 1.f, 0.f,  1.f, 0.f,  2.f,
+            1.f, 0.f, 0.f,  0.f, 1.f,  2.f,
+            0.f, 1.f, 0.f,  1.f, 0.f,  2.f,
+            1.f, 1.f, 0.f,  0.f, 0.f,  2.f,
+
+            0.f, 0.f, 0.f,  0.f, 1.f,  3.f,
+            0.f, 0.f, 1.f,  1.f, 1.f,  3.f,
+            0.f, 1.f, 1.f,  1.f, 0.f,  3.f,
+            0.f, 0.f, 0.f,  0.f, 1.f,  3.f,
+            0.f, 1.f, 1.f,  1.f, 0.f,  3.f,
+            0.f, 1.f, 0.f,  0.f, 0.f,  3.f,
+
+            0.f, 1.f, 1.f,  0.f, 1.f,  4.f,
+            1.f, 1.f, 1.f,  1.f, 1.f,  4.f,
+            1.f, 1.f, 0.f,  1.f, 0.f,  4.f,
+            0.f, 1.f, 1.f,  0.f, 1.f,  4.f,
+            1.f, 1.f, 0.f,  1.f, 0.f,  4.f,
+            0.f, 1.f, 0.f,  0.f, 0.f,  4.f,
+
+            0.f, 0.f, 0.f,  0.f, 1.f,  5.f,
+            1.f, 0.f, 0.f,  1.f, 1.f,  5.f,
+            1.f, 0.f, 1.f,  1.f, 0.f,  5.f,
+            0.f, 0.f, 0.f,  0.f, 1.f,  5.f,
+            1.f, 0.f, 1.f,  1.f, 0.f,  5.f,
+            0.f, 0.f, 1.f,  0.f, 0.f,  5.f,
+
+/*            0.f, 0.f, 1.f,  0.f, 0.f,  0.f,
+            1.f, 0.f, 1.f,  1.f, 0.f,  0.f,
+            1.f, 1.f, 1.f,  1.f, 1.f,  0.f,
+            0.f, 0.f, 1.f,  0.f, 0.f,  0.f,
+            1.f, 1.f, 1.f,  1.f, 1.f,  0.f,
+            0.f, 1.f, 1.f,  0.f, 1.f,  0.f,
+
+            1.f, 0.f, 1.f,  0.f, 0.f,  1.f,
+            1.f, 0.f, 0.f,  1.f, 0.f,  1.f,
+            1.f, 1.f, 0.f,  1.f, 1.f,  1.f,
+            1.f, 0.f, 1.f,  0.f, 0.f,  1.f,
+            1.f, 1.f, 0.f,  1.f, 1.f,  1.f,
+            1.f, 1.f, 1.f,  0.f, 1.f,  1.f,
+
+            1.f, 0.f, 0.f,  0.f, 0.f,  2.f,
+            0.f, 0.f, 0.f,  1.f, 0.f,  2.f,
+            0.f, 1.f, 0.f,  1.f, 1.f,  2.f,
+            1.f, 0.f, 0.f,  0.f, 0.f,  2.f,
+            0.f, 1.f, 0.f,  1.f, 1.f,  2.f,
+            1.f, 1.f, 0.f,  0.f, 1.f,  2.f,
+
+            0.f, 0.f, 0.f,  0.f, 0.f,  3.f,
+            0.f, 0.f, 1.f,  1.f, 0.f,  3.f,
+            0.f, 1.f, 1.f,  1.f, 1.f,  3.f,
+            0.f, 0.f, 0.f,  0.f, 0.f,  3.f,
+            0.f, 1.f, 1.f,  1.f, 1.f,  3.f,
+            0.f, 1.f, 0.f,  0.f, 1.f,  3.f,
+
+            0.f, 1.f, 1.f,  0.f, 0.f,  4.f,
+            1.f, 1.f, 1.f,  1.f, 0.f,  4.f,
+            1.f, 1.f, 0.f,  1.f, 1.f,  4.f,
+            0.f, 1.f, 1.f,  0.f, 0.f,  4.f,
+            1.f, 1.f, 0.f,  1.f, 1.f,  4.f,
+            0.f, 1.f, 0.f,  0.f, 1.f,  4.f,
+
+            0.f, 0.f, 0.f,  0.f, 0.f,  5.f,
+            1.f, 0.f, 0.f,  1.f, 0.f,  5.f,
+            1.f, 0.f, 1.f,  1.f, 1.f,  5.f,
+            0.f, 0.f, 0.f,  0.f, 0.f,  5.f,
+            1.f, 0.f, 1.f,  1.f, 1.f,  5.f,
+            0.f, 0.f, 1.f,  0.f, 1.f,  5.f,*/
+
+/*
+            0.f, 0.f, 1.f,  0.f, 0.f,  0.f, 0.f, 1.f,
+            1.f, 0.f, 1.f,  1.f, 0.f,  0.f, 0.f, 1.f,
+            1.f, 1.f, 1.f,  1.f, 1.f,  0.f, 0.f, 1.f,
+            0.f, 0.f, 1.f,  0.f, 0.f,  0.f, 0.f, 1.f,
+            1.f, 1.f, 1.f,  1.f, 1.f,  0.f, 0.f, 1.f,
+            0.f, 1.f, 1.f,  0.f, 1.f,  0.f, 0.f, 1.f,
+
+            1.f, 0.f, 1.f,  0.f, 0.f,  1.f, 0.f, 0.f,
+            1.f, 0.f, 0.f,  1.f, 0.f,  1.f, 0.f, 0.f,
+            1.f, 1.f, 0.f,  1.f, 1.f,  1.f, 0.f, 0.f,
+            1.f, 0.f, 1.f,  0.f, 0.f,  1.f, 0.f, 0.f,
+            1.f, 1.f, 0.f,  1.f, 1.f,  1.f, 0.f, 0.f,
+            1.f, 1.f, 1.f,  0.f, 1.f,  1.f, 0.f, 0.f,
+
+            1.f, 0.f, 0.f,  0.f, 0.f,  0.f, 0.f,-1.f,
+            0.f, 0.f, 0.f,  1.f, 0.f,  0.f, 0.f,-1.f,
+            0.f, 1.f, 0.f,  1.f, 1.f,  0.f, 0.f,-1.f,
+            1.f, 0.f, 0.f,  0.f, 0.f,  0.f, 0.f,-1.f,
+            0.f, 1.f, 0.f,  1.f, 1.f,  0.f, 0.f,-1.f,
+            1.f, 1.f, 0.f,  0.f, 1.f,  0.f, 0.f,-1.f,
+
+            0.f, 0.f, 0.f,  0.f, 0.f, -1.f, 0.f, 0.f,
+            0.f, 0.f, 1.f,  1.f, 0.f, -1.f, 0.f, 0.f,
+            0.f, 1.f, 1.f,  1.f, 1.f, -1.f, 0.f, 0.f,
+            0.f, 0.f, 0.f,  0.f, 0.f, -1.f, 0.f, 0.f,
+            0.f, 1.f, 1.f,  1.f, 1.f, -1.f, 0.f, 0.f,
+            0.f, 1.f, 0.f,  0.f, 1.f, -1.f, 0.f, 0.f,
+
+            0.f, 1.f, 1.f,  0.f, 0.f,  0.f, 1.0f, 0.0f,
+            1.f, 1.f, 1.f,  1.f, 0.f,  0.f, 1.0f, 0.0f,
+            1.f, 1.f, 0.f,  1.f, 1.f,  0.f, 1.0f, 0.0f,
+            0.f, 1.f, 1.f,  0.f, 0.f,  0.f, 1.0f, 0.0f,
+            1.f, 1.f, 0.f,  1.f, 1.f,  0.f, 1.0f, 0.0f,
+            0.f, 1.f, 0.f,  0.f, 1.f,  0.f, 1.0f, 0.0f,
+
+            0.f, 0.f, 0.f,  0.f, 0.f,  0.f,-1.0f, 0.0f,
+            1.f, 0.f, 0.f,  1.f, 0.f,  0.f,-1.0f, 0.0f,
+            1.f, 0.f, 1.f,  1.f, 1.f,  0.f,-1.0f, 0.0f,
+            0.f, 0.f, 0.f,  0.f, 0.f,  0.f,-1.0f, 0.0f,
+            1.f, 0.f, 1.f,  1.f, 1.f,  0.f,-1.0f, 0.0f,
+            0.f, 0.f, 1.f,  0.f, 1.f,  0.f,-1.0f, 0.0f*/
+    };
+
 
     // these are not pointers because an entt::entity is just a uint32 that shouldn't change after it is created.
     void tryCreateChunk(entt::registry& registry, int xChunk, int yChunk, int zChunk);
@@ -79,7 +210,7 @@ private:
 
     // adds ChunkOpenGL and generates vbo & vao
     // also configures vao
-    static void genVboVaoAndBuffer(entt::registry& registry, entt::entity chunkEntity);
+    void genVboVaoAndBuffer(entt::registry& registry, entt::entity chunkEntity);
 
 //    union Vertex {
 //        unsigned long asNum;
