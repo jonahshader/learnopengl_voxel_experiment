@@ -17,7 +17,7 @@ void PlayerControl::updateMovement(entt::registry &registry, double dt, GLFWwind
 
     if (glfwGetKey(window, GLFW_KEY_LEFT_CONTROL) == GLFW_PRESS) yMove--;
     if (glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS) yMove++;
-    if (glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS) multiplier = 3.0;
+    if (glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS) multiplier = 15.0;
 
     auto view = registry.view<Components::Velocity, Components::DirectionPitchYaw, Components::PlayerControl>();
 

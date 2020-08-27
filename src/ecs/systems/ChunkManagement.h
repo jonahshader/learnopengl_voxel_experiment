@@ -33,10 +33,10 @@ public:
     Shader &getShader();
 
 private:
-    const static int CHUNK_LOAD_RADIUS = 400; // this is in voxels, not chunks
-    const static int CHUNK_UNLOAD_RADIUS = 410; // this is in voxels, not chunks
+    const static int CHUNK_LOAD_RADIUS = 600; // this is in voxels, not chunks
+    const static int CHUNK_UNLOAD_RADIUS = 610; // this is in voxels, not chunks
     const static int MAX_BUFFERS_PER_FRAME = 1;
-    const static int MAX_GENERATES_PER_FRAME = 1;
+    const static int MAX_GENERATES_PER_FRAME = 2;
     const static int NUM_BYTES_PER_VERTEX = 8; // was 6
 
     std::unordered_map<std::string, entt::entity> chunkKeyToChunkEntity;

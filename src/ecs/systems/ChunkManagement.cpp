@@ -303,9 +303,9 @@ void ChunkManagement::generateChunk(Components::ChunkStatus &chunkStatus, Compon
         float yModifier = amplitude * (floor(-y/s) - (-y/s));
 
         float noiseOut = mainNoise.GetNoise(x, y, z) + slope + yModifier;
-        if (noiseOut > 0.2) {
+        if (noiseOut > 0.1) {
             chunkData.data[i] = 3;
-        } else if (noiseOut > 0.1) {
+        } else if (noiseOut > 0.05) {
             chunkData.data[i] = 2;
         } else if (noiseOut > 0.0) {
             chunkData.data[i] = 1;

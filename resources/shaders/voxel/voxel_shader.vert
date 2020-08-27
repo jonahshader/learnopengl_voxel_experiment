@@ -57,7 +57,7 @@ void main()
     texture_ = texs[normInt];
     normal_ = normInt;
     brightness_ = (float(b + 0.0f) / (MAX_BRIGHTNESS + 0.0f));;
-    fogMix_ = min(length(posBeforeTransform - camPos) / fogDistance, 1.0f);
+    fogMix_ = pow(min(length(posBeforeTransform - camPos) / fogDistance, 1.0f), 2.0f);
 //    fogMix_ = length(posBeforeTransform - camPos);
 //    fogMix_ = exp(-pow(fogMix_, 1.5f));
 }
