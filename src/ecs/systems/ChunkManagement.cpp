@@ -19,11 +19,25 @@ Components::Position ChunkManagement::chunkComparePos = {glm::dvec3(0.0)};
 
 ChunkManagement::ChunkManagement(const char* vertexPath, const char* fragmentPath) :
         voxelShader(vertexPath, fragmentPath),
-        noise()
+        mainNoise(),
+        terraceOffset(),
+        terraceSelect()
 {
-    noise.SetNoiseType(FastNoise::SimplexFractal);
-    noise.SetFrequency(0.0025);
-    noise.SetFractalOctaves(7);
+    mainNoise.SetNoiseType(FastNoise::SimplexFractal);
+    mainNoise.SetFrequency(0.0020);
+    mainNoise.SetFractalOctaves(7);
+    mainNoise.SetSeed(1505);
+
+    terraceOffset.SetNoiseType(FastNoise::SimplexFractal);
+    terraceOffset.SetFrequency(0.003);
+    terraceOffset.SetFractalOctaves(3);
+    terraceOffset.SetSeed(9853);
+
+    terraceSelect.SetNoiseType(FastNoise::SimplexFractal);
+    terraceSelect.SetFrequency(0.001);
+    terraceSelect.SetFractalOctaves(2);
+    terraceSelect.SetSeed(51239);
+
 
     // buffer cube data
     glGenBuffers(1, &cubeVbo);
@@ -45,6 +59,10 @@ entt::entity* ChunkManagement::getChunk(int xChunk, int yChunk, int zChunk) {
     } else {
         return &found->second;
     }
+}
+
+Components::ChunkData& ChunkManagement::getChunkData(entt::registry &registry, int xChunk, int yChunk, int zChunk) {
+    return registry.get<Components::ChunkData>(chunkKeyToChunkEntity[chunkPositionToKey(xChunk, yChunk, zChunk)]);
 }
 
 void ChunkManagement::run(entt::registry &registry) {
@@ -127,24 +145,24 @@ void ChunkManagement::run(entt::registry &registry) {
                             registry.emplace<Components::ChunkData>(chunkEntity); // add chunk data
                             chunkStatus.status = Components::ChunkStatusEnum::GENERATING_OR_LOADING;
                             auto &chunkData = registry.get<Components::ChunkData>(chunkEntity);
-//                            threadLaunchPointer = new std::thread(generateChunk, std::ref(chunkStatus), std::ref(chunkPosition), std::ref(chunkData), std::ref(noise));
+//                            threadLaunchPointer = new std::thread(generateChunk, std::ref(chunkStatus), std::ref(chunkPosition), std::ref(chunkData), std::ref(mainNoise));
 
-//                            std::thread coolThread(generateChunk, std::ref(chunkStatus), std::ref(chunkPosition), std::ref(chunkData), std::ref(noise));
+//                            std::thread coolThread(generateChunk, std::ref(chunkStatus), std::ref(chunkPosition), std::ref(chunkData), std::ref(mainNoise));
 //                            coolThread.detach();
 //                            threadLaunchPointer->detach();
-                            generateChunk(chunkStatus, chunkPosition, chunkData, noise);
+                            generateChunk(chunkStatus, chunkPosition, chunkData);
                             ++generates;
                         }
                         break;
                     case Components::ChunkStatusEnum::GENERATED_OR_LOADED:
-                    {
-                        // add mesh data
-                        registry.emplace<Components::ChunkMeshData>(chunkEntity);
-                        chunkStatus.status = Components::ChunkStatusEnum::MESH_GENERATING;
-                        auto [chunkData, chunkMeshData] = registry.get<Components::ChunkData, Components::ChunkMeshData>(chunkEntity);
+                        if (chunkHasAllNeighborData(registry, chunkPosition)) {
+                            // add mesh data
+                            registry.emplace<Components::ChunkMeshData>(chunkEntity);
+                            chunkStatus.status = Components::ChunkStatusEnum::MESH_GENERATING;
+                            auto [chunkData, chunkMeshData] = registry.get<Components::ChunkData, Components::ChunkMeshData>(chunkEntity);
 //                        new std::thread(generateMesh, std::ref(chunkStatus), std::ref(chunkPosition), std::ref(chunkData), std::ref(chunkMeshData));
-                        generateMesh(chunkStatus, chunkPosition, chunkData, chunkMeshData);
-                    }
+                            generateMesh(registry, chunkStatus, chunkPosition, chunkData, chunkMeshData);
+                        }
                         break;
                     case Components::ChunkStatusEnum::MESH_GENERATED:
                         if (buffers < MAX_BUFFERS_PER_FRAME) {
@@ -231,9 +249,9 @@ bool ChunkManagement::chunkCompareFun(entt::entity chunk1, entt::entity chunk2) 
 }
 
 void ChunkManagement::generateChunk(Components::ChunkStatus &chunkStatus, Components::ChunkPosition &chunkPosition,
-                                    Components::ChunkData &chunkData, FastNoise &n) {
+                                    Components::ChunkData &chunkData) {
 
-//    float* noiseSet = noise->GetSimplexFractalSet(chunkPosition.x * CHUNK_SIZE,
+//    float* noiseSet = mainNoise->GetSimplexFractalSet(chunkPosition.x * CHUNK_SIZE,
 //                                                  chunkPosition.y * CHUNK_SIZE,
 //                                                  chunkPosition.z * CHUNK_SIZE,
 //                                                  chunkPosition.x * CHUNK_SIZE + CHUNK_SIZE,
@@ -251,31 +269,30 @@ void ChunkManagement::generateChunk(Components::ChunkStatus &chunkStatus, Compon
         x += chunkPosition.x * CHUNK_SIZE;
         y += chunkPosition.y * CHUNK_SIZE;
         z += chunkPosition.z * CHUNK_SIZE;
-        float slope = -y * 0.0025f;
-//        if (slope < -1.f) {
-//            chunkData.data[i] = 0;
-//        } else if (slope > 1.2f){
-//            chunkData.data[i] = 3;
-//        } else {
-            float noiseOut = powf(M_E, n.GetNoise(x, y, z) * 5) + slope;
-            if (noiseOut > 0.2) {
-                chunkData.data[i] = 3;
-            } else if (noiseOut > 0.1) {
-                chunkData.data[i] = 2;
-            } else if (noiseOut > 0.0) {
-                chunkData.data[i] = 1;
-            } else {
-                chunkData.data[i] = 0;
-            }
-//        }
-    }
+        float slopeScaler = 0.0025f;
+        float slope = -y * slopeScaler;
 
-    for (int z = 0; z < CHUNK_SIZE; z++) for (int y = 0; y < CHUNK_SIZE - 1; y++) for (int x = 0; x < CHUNK_SIZE; x++) {
-        if (chunkData.data[x + (y + 1) * CHUNK_SIZE + z * CHUNK_SIZE * CHUNK_SIZE] == 1 ||
-        chunkData.data[x + (y + 1) * CHUNK_SIZE + z * CHUNK_SIZE * CHUNK_SIZE] == 2) {
-            chunkData.data[x + y * CHUNK_SIZE + z * CHUNK_SIZE * CHUNK_SIZE] = 2;
+        float terraceValRaw = (terraceOffset.GetNoise(x, z) + 1.0f) * 0.5f;
+        float terraceSelectRaw = terraceSelect.GetNoise(x, z);
+        float terraceVal = terraceValRaw * (terraceSelectRaw + 1.0f) * 0.5f;
+
+        float s = std::max(25.0f * terraceValRaw, 1.0f);
+        float amplitude = slopeScaler * s * terraceVal;
+        float yModifier = amplitude * (floor(-y/s) - (-y/s));
+
+        float noiseOut = mainNoise.GetNoise(x, y, z) + slope + yModifier;
+        if (noiseOut > 0.2) {
+            chunkData.data[i] = 3;
+        } else if (noiseOut > 0.1) {
+            chunkData.data[i] = 2;
+        } else if (noiseOut > 0.0) {
+            chunkData.data[i] = 1;
+        } else {
+            chunkData.data[i] = 0;
         }
     }
+
+
 
 
     //update state to GENERATED_OR_LOADED
@@ -283,40 +300,43 @@ void ChunkManagement::generateChunk(Components::ChunkStatus &chunkStatus, Compon
 //    std::cout << "Done generating chunk" << std::endl;
 }
 
-void ChunkManagement::generateMesh(Components::ChunkStatus &chunkStatus, Components::ChunkPosition &chunkPosition,
+void ChunkManagement::generateMesh(entt::registry& registry, Components::ChunkStatus &chunkStatus, Components::ChunkPosition &chunkPosition,
                                    Components::ChunkData &chunkData, Components::ChunkMeshData &chunkMeshData) {
 
     bool meshed[VOXELS_PER_CHUNK] = {false};
     unsigned char bVals[VOXELS_PER_CHUNK] = {0};
 
+
+
+    Components::ChunkData* neighborChunks[27];
+    for (int z = 0; z < 3; ++z) for (int y = 0; y < 3; ++y) for (int x = 0; x < 3; ++x) {
+        neighborChunks[x + y * 3 + z * 9] = &getChunkData(registry, chunkPosition.x + x - 1, chunkPosition.y + y - 1, chunkPosition.z + z - 1);
+    }
+
+#pragma omp parallel for
+    for (int z = 0; z < CHUNK_SIZE; z++) for (int y = 0; y < CHUNK_SIZE - 1; y++) for (int x = 0; x < CHUNK_SIZE; x++) {
+        auto mat = Components::chunkDataGet(chunkData, x, (y + 1), z);
+        if (mat == 1 || mat == 2) {
+            chunkData.data[x + y * CHUNK_SIZE + z * CHUNK_SIZE * CHUNK_SIZE] = 2;
+        }
+    }
+#pragma omp parallel for
+    for (int z = 0; z < CHUNK_SIZE; z++) for (int x = 0; x < CHUNK_SIZE; x++) {
+        int y = CHUNK_SIZE - 1;
+        auto mat = Components::chunkDataGet(neighborChunks, x, (y + 1), z);
+        if (mat == 1 || mat == 2) {
+            chunkData.data[x + y * CHUNK_SIZE + z * CHUNK_SIZE * CHUNK_SIZE] = 2;
+        }
+    }
+
+
 #pragma omp parallel for
     for (int z = 0; z < CHUNK_SIZE; ++z) {
         for(int y = 0; y < CHUNK_SIZE; ++y) {
             for (int x = 0; x < CHUNK_SIZE; ++x) {
-                for (int lx = -2; lx <= 2; ++lx) for (int ly = 1; ly <= 2; ++ly) for (int lz = -2; lz <= 2; ++lz) {
-                    bVals[x + y * CHUNK_SIZE + z * CHUNK_SIZE * CHUNK_SIZE] += Components::chunkDataGetAirBounds(chunkData, x + lx, y + ly, z + lz) == 0 ? 1 : 0;
+                for (int lx = -1; lx <= 1; ++lx) for (int ly = 1; ly <= 25; ++ly) for (int lz = -1; lz <= 1; ++lz) {
+                    bVals[x + y * CHUNK_SIZE + z * CHUNK_SIZE * CHUNK_SIZE] += Components::chunkDataGet(neighborChunks, x + lx, y + ly, z + lz) == 0 ? 1 : 0;
                 }
-                if (x < 2 || x >= CHUNK_SIZE - 2) bVals[x + y * CHUNK_SIZE + z * CHUNK_SIZE * CHUNK_SIZE] -= 5;
-                if (y >= CHUNK_SIZE - 2) bVals[x + y * CHUNK_SIZE + z * CHUNK_SIZE * CHUNK_SIZE] -= 5;
-                if (z < 2 || z >= CHUNK_SIZE - 2 >= CHUNK_SIZE - 2) bVals[x + y * CHUNK_SIZE + z * CHUNK_SIZE * CHUNK_SIZE] -= 5;
-                if (x < 1 || x >= CHUNK_SIZE - 1) bVals[x + y * CHUNK_SIZE + z * CHUNK_SIZE * CHUNK_SIZE] -= 5;
-                if (y >= CHUNK_SIZE - 1) bVals[x + y * CHUNK_SIZE + z * CHUNK_SIZE * CHUNK_SIZE] -= 5;
-                if (z < 1 || z >= CHUNK_SIZE - 1) bVals[x + y * CHUNK_SIZE + z * CHUNK_SIZE * CHUNK_SIZE] -= 5;
-//                bVals[x + y * CHUNK_SIZE + z * CHUNK_SIZE * CHUNK_SIZE] += Components::chunkDataGetAirBounds(chunkData, x + 1, y + 0, z + 0) == 0 ? 1 : 0;
-//                bVals[x + y * CHUNK_SIZE + z * CHUNK_SIZE * CHUNK_SIZE] += Components::chunkDataGetAirBounds(chunkData, x - 1, y + 0, z + 0) == 0 ? 1 : 0;
-//                bVals[x + y * CHUNK_SIZE + z * CHUNK_SIZE * CHUNK_SIZE] += Components::chunkDataGetAirBounds(chunkData, x + 0, y + 1, z + 0) == 0 ? 1 : 0;
-//                bVals[x + y * CHUNK_SIZE + z * CHUNK_SIZE * CHUNK_SIZE] += Components::chunkDataGetAirBounds(chunkData, x + 0, y - 1, z + 0) == 0 ? 1 : 0;
-//                bVals[x + y * CHUNK_SIZE + z * CHUNK_SIZE * CHUNK_SIZE] += Components::chunkDataGetAirBounds(chunkData, x + 0, y + 0, z + 1) == 0 ? 1 : 0;
-//                bVals[x + y * CHUNK_SIZE + z * CHUNK_SIZE * CHUNK_SIZE] += Components::chunkDataGetAirBounds(chunkData, x + 0, y + 0, z - 1) == 0 ? 1 : 0;
-//
-//                bVals[x + y * CHUNK_SIZE + z * CHUNK_SIZE * CHUNK_SIZE] += Components::chunkDataGetAirBounds(chunkData, x + 1, y + 1, z + 1) == 0 ? 1 : 0;
-//                bVals[x + y * CHUNK_SIZE + z * CHUNK_SIZE * CHUNK_SIZE] += Components::chunkDataGetAirBounds(chunkData, x + 1, y + 1, z - 1) == 0 ? 1 : 0;
-//                bVals[x + y * CHUNK_SIZE + z * CHUNK_SIZE * CHUNK_SIZE] += Components::chunkDataGetAirBounds(chunkData, x + 1, y - 1, z + 1) == 0 ? 1 : 0;
-//                bVals[x + y * CHUNK_SIZE + z * CHUNK_SIZE * CHUNK_SIZE] += Components::chunkDataGetAirBounds(chunkData, x + 1, y - 1, z - 1) == 0 ? 1 : 0;
-//                bVals[x + y * CHUNK_SIZE + z * CHUNK_SIZE * CHUNK_SIZE] += Components::chunkDataGetAirBounds(chunkData, x - 1, y + 1, z + 1) == 0 ? 1 : 0;
-//                bVals[x + y * CHUNK_SIZE + z * CHUNK_SIZE * CHUNK_SIZE] += Components::chunkDataGetAirBounds(chunkData, x - 1, y + 1, z - 1) == 0 ? 1 : 0;
-//                bVals[x + y * CHUNK_SIZE + z * CHUNK_SIZE * CHUNK_SIZE] += Components::chunkDataGetAirBounds(chunkData, x - 1, y - 1, z + 1) == 0 ? 1 : 0;
-//                bVals[x + y * CHUNK_SIZE + z * CHUNK_SIZE * CHUNK_SIZE] += Components::chunkDataGetAirBounds(chunkData, x - 1, y - 1, z - 1) == 0 ? 1 : 0;
             }
         }
     }
@@ -327,7 +347,7 @@ void ChunkManagement::generateMesh(Components::ChunkStatus &chunkStatus, Compone
                 if (!meshed[x + y * CHUNK_SIZE + z * CHUNK_SIZE * CHUNK_SIZE]) {
                     auto material = Components::chunkDataGet(chunkData, x, y, z);
                     auto brightness = bVals[x + y * CHUNK_SIZE + z * CHUNK_SIZE * CHUNK_SIZE];
-                    if (material != 0 && Components::voxelIsTouchingAir(chunkData, x, y, z)) {
+                    if (material != 0 && Components::voxelIsTouchingAir(neighborChunks, x, y, z)) {
 //                    if (material != 0) {
                         int xSize = 0;
                         int ySize = 1;
@@ -335,20 +355,20 @@ void ChunkManagement::generateMesh(Components::ChunkStatus &chunkStatus, Compone
 
                         int xCurrent = x;
 
-                        while (!meshed[xCurrent + y * CHUNK_SIZE + z * CHUNK_SIZE * CHUNK_SIZE] &&
-                        Components::chunkDataGetAirBounds(chunkData, xCurrent, y, z) == material &&
+                        while (xCurrent < CHUNK_SIZE &&
+                        !meshed[xCurrent + y * CHUNK_SIZE + z * CHUNK_SIZE * CHUNK_SIZE] &&
+                        Components::chunkDataGet(chunkData, xCurrent, y, z) == material &&
                         bVals[xCurrent + y * CHUNK_SIZE + z * CHUNK_SIZE * CHUNK_SIZE] == brightness &&
-                        Components::voxelIsTouchingAir(chunkData, xCurrent, y, z)) {
-//                        Components::chunkDataGetAirBounds(chunkData, xCurrent, y, z) == material) {
+                        Components::voxelIsTouchingAir(neighborChunks, xCurrent, y, z)) {
                             ++xCurrent;
                             ++xSize;
                         }
                         for (int yl = y + 1; yl < CHUNK_SIZE; ++yl) {
                             for (int xl = x; xl < x + xSize; ++xl) {
                                 if (!meshed[xl + yl * CHUNK_SIZE + z * CHUNK_SIZE * CHUNK_SIZE] &&
-                                Components::chunkDataGetAirBounds(chunkData, xl, yl, z) == material &&
+                                Components::chunkDataGet(chunkData, xl, yl, z) == material &&
                                 bVals[xl + yl * CHUNK_SIZE + z * CHUNK_SIZE * CHUNK_SIZE] == brightness &&
-                                    Components::voxelIsTouchingAir(chunkData, xl, yl, z)) {
+                                    Components::voxelIsTouchingAir(neighborChunks, xl, yl, z)) {
 //                                if (!meshed[xl + yl * CHUNK_SIZE + z * CHUNK_SIZE * CHUNK_SIZE] &&
 //                                Components::chunkDataGetAirBounds(chunkData, xl, yl, z) == material) {
                                 } else {
@@ -363,9 +383,9 @@ void ChunkManagement::generateMesh(Components::ChunkStatus &chunkStatus, Compone
                             for (int yl = y; yl < y + ySize; ++yl) {
                                 for (int xl = x; xl < x + xSize; ++xl) {
                                     if (!meshed[xl + yl * CHUNK_SIZE + zl * CHUNK_SIZE * CHUNK_SIZE] &&
-                                        Components::chunkDataGetAirBounds(chunkData, xl, yl, zl) == material &&
+                                        Components::chunkDataGet(chunkData, xl, yl, zl) == material &&
                                         bVals[xl + yl * CHUNK_SIZE + zl * CHUNK_SIZE * CHUNK_SIZE] == brightness &&
-                                        Components::voxelIsTouchingAir(chunkData, xl, yl, zl)) {
+                                        Components::voxelIsTouchingAir(neighborChunks, xl, yl, zl)) {
 //                                if (!meshed[xl + yl * CHUNK_SIZE + z * CHUNK_SIZE * CHUNK_SIZE] &&
 //                                Components::chunkDataGetAirBounds(chunkData, xl, yl, z) == material) {
                                     } else {
@@ -876,4 +896,38 @@ void ChunkManagement::addVertexArrayToMesh(std::vector<unsigned char> &mesh, uns
     for (int i = 0; i < numBytesToCopy; i++) {
         mesh.push_back(vertex[i]);
     }
+}
+
+bool ChunkManagement::chunkHasAllNeighborData(entt::registry &registry, Components::ChunkPosition &chunkPosition) {
+    bool good = true;
+    for (int x = -1; x <= 1; ++x) {
+        for (int y = -1; y <= 1; ++y) {
+            for (int z = -1; z <= 1; ++z) {
+                if (!chunkHasData(registry, chunkPosition.x + x, chunkPosition.y + y, chunkPosition.z + z)) {
+                    good = false;
+                    goto loopExit;
+                }
+            }
+        }
+    }
+    loopExit:
+    return good;
+}
+
+bool ChunkManagement::chunkHasData(entt::registry &registry, int xChunk, int yChunk, int zChunk) {
+    auto key = chunkPositionToKey(xChunk, yChunk, zChunk);
+    auto found = chunkKeyToChunkEntity.find(key);
+    // if a chunk with this position is not already here, continue making the new chunk entity
+    if (found != chunkKeyToChunkEntity.end()) {
+        auto chunkEntity = chunkKeyToChunkEntity[key];
+        auto &chunkStatus = registry.get<Components::ChunkStatus>(chunkEntity);
+        if (chunkStatus.status == Components::ChunkStatusEnum::GENERATED_OR_LOADED ||
+                chunkStatus.status == Components::ChunkStatusEnum::MESH_GENERATED ||
+                chunkStatus.status == Components::ChunkStatusEnum::MESH_BUFFERED) {
+            return true;
+        } else {
+            return false;
+        }
+    }
+    return false;
 }

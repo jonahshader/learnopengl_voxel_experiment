@@ -1,6 +1,6 @@
 #version 430 core
 
-#define MAX_BRIGHTNESS (50.f)
+#define MAX_BRIGHTNESS (225.f)
 
 layout (location = 0) in vec3 xyz;
 layout (location = 1) in vec2 tcoord;
@@ -56,7 +56,7 @@ void main()
     texture_ = texs[normInt];
     normal_ = normInt;
     brightness_ = (float(b + 0.0f) / (MAX_BRIGHTNESS + 0.0f));;
-    fogMix_ = min(length(posBeforeTransform - camPos) / 300.0f, 1.0f);
+    fogMix_ = min(length(posBeforeTransform - camPos) / 350.0f, 1.0f);
 //    fogMix_ = length(posBeforeTransform - camPos);
 //    fogMix_ = exp(-pow(fogMix_, 1.5f));
 }

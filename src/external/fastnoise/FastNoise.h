@@ -53,21 +53,21 @@ public:
 	enum CellularDistanceFunction { Euclidean, Manhattan, Natural };
 	enum CellularReturnType { CellValue, NoiseLookup, Distance, Distance2, Distance2Add, Distance2Sub, Distance2Mul, Distance2Div };
 
-	// Sets seed used for all noise types
+	// Sets seed used for all mainNoise types
 	// Default: 1337
 	void SetSeed(int seed);
 
-	// Returns seed used for all noise types
+	// Returns seed used for all mainNoise types
 	int GetSeed() const { return m_seed; }
 
-	// Sets frequency for all noise types
+	// Sets frequency for all mainNoise types
 	// Default: 0.01
 	void SetFrequency(FN_DECIMAL frequency) { m_frequency = frequency; }
 
-	// Returns frequency used for all noise types
+	// Returns frequency used for all mainNoise types
 	FN_DECIMAL GetFrequency() const { return m_frequency; }
 
-	// Changes the interpolation method used to smooth between noise values
+	// Changes the interpolation method used to smooth between mainNoise values
 	// Possible interpolation methods (lowest to highest quality) :
 	// - Linear
 	// - Hermite
@@ -76,65 +76,65 @@ public:
 	// Default: Quintic
 	void SetInterp(Interp interp) { m_interp = interp; }
 
-	// Returns interpolation method used for supported noise types
+	// Returns interpolation method used for supported mainNoise types
 	Interp GetInterp() const { return m_interp; }
 
-	// Sets noise return type of GetNoise(...)
+	// Sets mainNoise return type of GetNoise(...)
 	// Default: Simplex
 	void SetNoiseType(NoiseType noiseType) { m_noiseType = noiseType; }
 
-	// Returns the noise type used by GetNoise
+	// Returns the mainNoise type used by GetNoise
 	NoiseType GetNoiseType() const { return m_noiseType; }
 
-	// Sets octave count for all fractal noise types
+	// Sets octave count for all fractal mainNoise types
 	// Default: 3
 	void SetFractalOctaves(int octaves) { m_octaves = octaves; CalculateFractalBounding(); }
 
-	// Returns octave count for all fractal noise types
+	// Returns octave count for all fractal mainNoise types
 	int GetFractalOctaves() const { return m_octaves; }
 	
-	// Sets octave lacunarity for all fractal noise types
+	// Sets octave lacunarity for all fractal mainNoise types
 	// Default: 2.0
 	void SetFractalLacunarity(FN_DECIMAL lacunarity) { m_lacunarity = lacunarity; }
 
-	// Returns octave lacunarity for all fractal noise types
+	// Returns octave lacunarity for all fractal mainNoise types
 	FN_DECIMAL GetFractalLacunarity() const { return m_lacunarity; }
 
-	// Sets octave gain for all fractal noise types
+	// Sets octave gain for all fractal mainNoise types
 	// Default: 0.5
 	void SetFractalGain(FN_DECIMAL gain) { m_gain = gain; CalculateFractalBounding(); }
 
-	// Returns octave gain for all fractal noise types
+	// Returns octave gain for all fractal mainNoise types
 	FN_DECIMAL GetFractalGain() const { return m_gain; }
 
-	// Sets method for combining octaves in all fractal noise types
+	// Sets method for combining octaves in all fractal mainNoise types
 	// Default: FBM
 	void SetFractalType(FractalType fractalType) { m_fractalType = fractalType; }
 
-	// Returns method for combining octaves in all fractal noise types
+	// Returns method for combining octaves in all fractal mainNoise types
 	FractalType GetFractalType() const { return m_fractalType; }
 
 
-	// Sets distance function used in cellular noise calculations
+	// Sets distance function used in cellular mainNoise calculations
 	// Default: Euclidean
 	void SetCellularDistanceFunction(CellularDistanceFunction cellularDistanceFunction) { m_cellularDistanceFunction = cellularDistanceFunction; }
 
-	// Returns the distance function used in cellular noise calculations
+	// Returns the distance function used in cellular mainNoise calculations
 	CellularDistanceFunction GetCellularDistanceFunction() const { return m_cellularDistanceFunction; }
 
-	// Sets return type from cellular noise calculations
+	// Sets return type from cellular mainNoise calculations
 	// Note: NoiseLookup requires another FastNoise object be set with SetCellularNoiseLookup() to function
 	// Default: CellValue
 	void SetCellularReturnType(CellularReturnType cellularReturnType) { m_cellularReturnType = cellularReturnType; }
 
-	// Returns the return type from cellular noise calculations
+	// Returns the return type from cellular mainNoise calculations
 	CellularReturnType GetCellularReturnType() const { return m_cellularReturnType; }
 
 	// Noise used to calculate a cell value if cellular return type is NoiseLookup
-	// The lookup value is acquired through GetNoise() so ensure you SetNoiseType() on the noise lookup, value, Perlin or simplex is recommended
+	// The lookup value is acquired through GetNoise() so ensure you SetNoiseType() on the mainNoise lookup, value, Perlin or simplex is recommended
 	void SetCellularNoiseLookup(FastNoise* noise) { m_cellularNoiseLookup = noise; }
 
-	// Returns the noise used to calculate a cell value if the cellular return type is NoiseLookup
+	// Returns the mainNoise used to calculate a cell value if the cellular return type is NoiseLookup
 	FastNoise* GetCellularNoiseLookup() const { return m_cellularNoiseLookup; }
 
 	// Sets the 2 distance indices used for distance2 return types

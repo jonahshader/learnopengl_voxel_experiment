@@ -8,6 +8,20 @@ unsigned char Components::chunkDataGet(ChunkData &data, int x, int y, int z) {
     return data.data[z * CHUNK_SIZE * CHUNK_SIZE + y * CHUNK_SIZE + x];
 }
 
+unsigned char Components::chunkDataGet(ChunkData* chunks[], int x, int y, int z) {
+    int cx = std::floor(x / (float) CHUNK_SIZE);
+    int cy = std::floor(y / (float) CHUNK_SIZE);
+    int cz = std::floor(z / (float) CHUNK_SIZE);
+
+    int i = (cx + 1) + (cy + 1) * 3 + (cz + 1) * 9;
+    int xx = x - cx * CHUNK_SIZE;
+    int yy = y - cy * CHUNK_SIZE;
+    int zz = z - cz * CHUNK_SIZE;
+
+    return chunks[i]->data[xx + yy * CHUNK_SIZE + zz * CHUNK_SIZE * CHUNK_SIZE];
+}
+
+
 void Components::chunkDataSet(ChunkData &data, unsigned char value, int x, int y, int z) {
     data.data[z * CHUNK_SIZE * CHUNK_SIZE + y * CHUNK_SIZE + x] = value;
 }
@@ -32,4 +46,14 @@ bool Components::voxelIsTouchingAir(ChunkData &data, int x, int y, int z) {
         chunkDataGetAirBounds(data, x + 0, y - 1, z + 0) == 0 ||
         chunkDataGetAirBounds(data, x + 0, y + 0, z + 1) == 0 ||
         chunkDataGetAirBounds(data, x + 0, y + 0, z - 1) == 0;
+}
+
+bool Components::voxelIsTouchingAir(ChunkData* chunks[], int x, int y, int z) {
+    return
+            chunkDataGet(chunks, x + 1, y + 0, z + 0) == 0 ||
+            chunkDataGet(chunks, x - 1, y + 0, z + 0) == 0 ||
+            chunkDataGet(chunks, x + 0, y + 1, z + 0) == 0 ||
+            chunkDataGet(chunks, x + 0, y - 1, z + 0) == 0 ||
+            chunkDataGet(chunks, x + 0, y + 0, z + 1) == 0 ||
+            chunkDataGet(chunks, x + 0, y + 0, z - 1) == 0;
 }

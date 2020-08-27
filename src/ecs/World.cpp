@@ -22,8 +22,8 @@ skyColor(0.5f, 0.6f, 0.7f)
     registry.emplace<Components::ChunkPosition>(player, 0, 0, 0);
     registry.emplace<Components::DirectionPitchYaw>(player, M_PI, 0.0);
     registry.emplace<Components::PlayerControl>(player);
-    registry.emplace<Components::TravelMaxSpeed>(player, 25.0);
-    registry.emplace<Components::CameraAttach>(player, 100.0);
+    registry.emplace<Components::TravelMaxSpeed>(player, 5.612);
+    registry.emplace<Components::CameraAttach>(player, 90.0);
 }
 
 void World::run(double dt, GLFWwindow *window) {

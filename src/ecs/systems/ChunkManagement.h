@@ -33,8 +33,8 @@ public:
     Shader &getShader();
 
 private:
-    const static int CHUNK_LOAD_RADIUS = 350; // this is in voxels, not chunks
-    const static int CHUNK_UNLOAD_RADIUS = 360; // this is in voxels, not chunks
+    const static int CHUNK_LOAD_RADIUS = 400; // this is in voxels, not chunks
+    const static int CHUNK_UNLOAD_RADIUS = 410; // this is in voxels, not chunks
     const static int MAX_BUFFERS_PER_FRAME = 1;
     const static int MAX_GENERATES_PER_FRAME = 1;
     const static int NUM_BYTES_PER_VERTEX = 8; // was 6
@@ -44,7 +44,10 @@ private:
 
     Shader voxelShader;
 
-    FastNoise noise;
+    FastNoise mainNoise;
+    FastNoise terraceOffset;
+    FastNoise terraceSelect;
+
 
     unsigned int cubeVbo;
 
@@ -188,11 +191,18 @@ private:
     static bool chunkCompareFun(entt::entity chunk1, entt::entity chunk2);
     // assumes chunk entity already has ChunkData, ChunkStatus,
     std::thread* threadLaunchPointer;
-    static void generateChunk(Components::ChunkStatus &chunkStatus, Components::ChunkPosition &chunkPosition, Components::ChunkData &chunkData, FastNoise &n);
+    void generateChunk(Components::ChunkStatus &chunkStatus,
+                       Components::ChunkPosition &chunkPosition, Components::ChunkData &chunkData);
 
     // assumes chunk entity already has ChunkData, ChunkStatus, ChunkMesh
-    static void generateMesh(Components::ChunkStatus &chunkStatus, Components::ChunkPosition &chunkPosition,
+    void generateMesh(entt::registry& registry, Components::ChunkStatus &chunkStatus, Components::ChunkPosition &chunkPosition,
                              Components::ChunkData &chunkData, Components::ChunkMeshData &chunkMeshData);
+
+    bool chunkHasAllNeighborData(entt::registry &registry, Components::ChunkPosition &chunkPosition);
+
+    bool chunkHasData(entt::registry &registry, int xChunk, int yChunk, int zChunk);
+
+    Components::ChunkData& getChunkData(entt::registry &registry, int xChunk, int yChunk, int zChunk);
 
     // outer loop is major, inner loop is minor
     // slice is the progress in the 3rd direction away from 0, 0, 0
