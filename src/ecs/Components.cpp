@@ -9,9 +9,12 @@ unsigned char Components::chunkDataGet(ChunkData &data, int x, int y, int z) {
 }
 
 unsigned char Components::chunkDataGet(ChunkData* chunks[], int x, int y, int z) {
-    int cx = std::floor(x / (float) CHUNK_SIZE);
-    int cy = std::floor(y / (float) CHUNK_SIZE);
-    int cz = std::floor(z / (float) CHUNK_SIZE);
+//    int cx = std::floor(x / (float) CHUNK_SIZE);
+//    int cy = std::floor(y / (float) CHUNK_SIZE);
+//    int cz = std::floor(z / (float) CHUNK_SIZE);
+    int cx = x >= 0 ? x / CHUNK_SIZE : (x / CHUNK_SIZE) - 1;
+    int cy = y >= 0 ? y / CHUNK_SIZE : (y / CHUNK_SIZE) - 1;
+    int cz = z >= 0 ? z / CHUNK_SIZE : (z / CHUNK_SIZE) - 1;
 
     int i = (cx + 1) + (cy + 1) * 3 + (cz + 1) * 9;
     int xx = x - cx * CHUNK_SIZE;
@@ -50,10 +53,27 @@ bool Components::voxelIsTouchingAir(ChunkData &data, int x, int y, int z) {
 
 bool Components::voxelIsTouchingAir(ChunkData* chunks[], int x, int y, int z) {
     return
-            chunkDataGet(chunks, x + 1, y + 0, z + 0) == 0 ||
-            chunkDataGet(chunks, x - 1, y + 0, z + 0) == 0 ||
-            chunkDataGet(chunks, x + 0, y + 1, z + 0) == 0 ||
-            chunkDataGet(chunks, x + 0, y - 1, z + 0) == 0 ||
-            chunkDataGet(chunks, x + 0, y + 0, z + 1) == 0 ||
-            chunkDataGet(chunks, x + 0, y + 0, z - 1) == 0;
+        chunkDataGet(chunks, x + 1, y + 0, z + 0) == 0 ||
+        chunkDataGet(chunks, x - 1, y + 0, z + 0) == 0 ||
+        chunkDataGet(chunks, x + 0, y + 1, z + 0) == 0 ||
+        chunkDataGet(chunks, x + 0, y - 1, z + 0) == 0 ||
+        chunkDataGet(chunks, x + 0, y + 0, z + 1) == 0 ||
+        chunkDataGet(chunks, x + 0, y + 0, z - 1) == 0;
 }
+
+bool Components::voxelIsTouchingAirOptimizeChoose(ChunkData &data, ChunkData* chunks[], bool optimize, int x, int y, int z) {
+    if (optimize) {
+        return voxelIsTouchingAir(data, x, y, z);
+    } else {
+        return voxelIsTouchingAir(chunks, x, y, z);
+    }
+}
+
+unsigned char Components::chunkDataGetOptimizeChoose(ChunkData &data, ChunkData* chunks[], bool optimize, int x, int y, int z) {
+    if (optimize) {
+        return chunkDataGet(data, x, y, z);
+    } else {
+        return chunkDataGet(chunks, x, y, z);
+    }
+}
+

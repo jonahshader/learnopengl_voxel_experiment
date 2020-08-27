@@ -21,7 +21,9 @@ ChunkManagement::ChunkManagement(const char* vertexPath, const char* fragmentPat
         voxelShader(vertexPath, fragmentPath),
         mainNoise(),
         terraceOffset(),
-        terraceSelect()
+        terraceSelect(),
+        fogDistance(1.0f),
+        cubeVbo(0)
 {
     mainNoise.SetNoiseType(FastNoise::SimplexFractal);
     mainNoise.SetFrequency(0.0020);
@@ -114,6 +116,10 @@ void ChunkManagement::run(entt::registry &registry) {
         chunkCompareRegistry = &registry;
         // perform sort
         std::sort(chunks.begin(), chunks.end(), chunkCompareFun);
+
+        // init fogDistance to CHUNK_LOAD_RADIUS
+        fogDistance = CHUNK_LOAD_RADIUS;
+
         // progress chunks through stages
         int buffers = 0;
         int generates = 0;
@@ -123,6 +129,12 @@ void ChunkManagement::run(entt::registry &registry) {
 
             // check if this chunk is in range
             // as long as these chunks are within the unload radius, they can continue loading
+
+            if (chunkStatus.status != Components::ChunkStatusEnum::MESH_BUFFERED) {
+                float dist = worldPosChunkPosDist(chunkPosition, playerPos);
+                if (dist < fogDistance)
+                    fogDistance = dist;
+            }
 
             if (chunkStatus.markedForRemoval) {
 //                std::cout << "stat of chunk marked for removal: " << chunkStatus.status << std::endl;
@@ -150,7 +162,10 @@ void ChunkManagement::run(entt::registry &registry) {
 //                            std::thread coolThread(generateChunk, std::ref(chunkStatus), std::ref(chunkPosition), std::ref(chunkData), std::ref(mainNoise));
 //                            coolThread.detach();
 //                            threadLaunchPointer->detach();
+                            double startTime = glfwGetTime();
                             generateChunk(chunkStatus, chunkPosition, chunkData);
+                            double endTime = glfwGetTime();
+                            std::cout << "Gen time: " << (endTime - startTime) << std::endl;
                             ++generates;
                         }
                         break;
@@ -161,7 +176,10 @@ void ChunkManagement::run(entt::registry &registry) {
                             chunkStatus.status = Components::ChunkStatusEnum::MESH_GENERATING;
                             auto [chunkData, chunkMeshData] = registry.get<Components::ChunkData, Components::ChunkMeshData>(chunkEntity);
 //                        new std::thread(generateMesh, std::ref(chunkStatus), std::ref(chunkPosition), std::ref(chunkData), std::ref(chunkMeshData));
+                            double startTime = glfwGetTime();
                             generateMesh(registry, chunkStatus, chunkPosition, chunkData, chunkMeshData);
+                            double endTime = glfwGetTime();
+                            std::cout << "Mesh time: " << (endTime - startTime) << std::endl;
                         }
                         break;
                     case Components::ChunkStatusEnum::MESH_GENERATED:
@@ -178,6 +196,10 @@ void ChunkManagement::run(entt::registry &registry) {
                 chunkStatus.markedForRemoval = true;
             }
         }
+
+        // shrink fog distance
+        fogDistance -= sqrt(3 * pow(CHUNK_SIZE/2, 2));
+        fogDistance = std::max(fogDistance, 1.0f);
 
         // erase chunks from chunks vector
         for (auto cToRemove : chunksSuccessfullyRemoved) {
@@ -329,14 +351,22 @@ void ChunkManagement::generateMesh(entt::registry& registry, Components::ChunkSt
         }
     }
 
-
+    const int aoWidth = 1;
+    const int aoHeight = 15;
 #pragma omp parallel for
     for (int z = 0; z < CHUNK_SIZE; ++z) {
         for(int y = 0; y < CHUNK_SIZE; ++y) {
             for (int x = 0; x < CHUNK_SIZE; ++x) {
-                for (int lx = -1; lx <= 1; ++lx) for (int ly = 1; ly <= 25; ++ly) for (int lz = -1; lz <= 1; ++lz) {
-                    bVals[x + y * CHUNK_SIZE + z * CHUNK_SIZE * CHUNK_SIZE] += Components::chunkDataGet(neighborChunks, x + lx, y + ly, z + lz) == 0 ? 1 : 0;
+                if (x >= aoWidth && x < CHUNK_SIZE - aoWidth && z >= aoWidth && z < CHUNK_SIZE - aoWidth && y < CHUNK_SIZE - aoHeight) {
+                    for (int lz = -aoWidth; lz <= aoWidth; ++lz) for (int ly = 1; ly <= aoHeight; ++ly) for (int lx = -aoWidth; lx <= aoWidth; ++lx)  {
+                        bVals[x + y * CHUNK_SIZE + z * CHUNK_SIZE * CHUNK_SIZE] += Components::chunkDataGet(chunkData, x + lx, y + ly, z + lz) == 0 ? 1 : 0;
+                    }
+                } else {
+                    for (int lz = -aoWidth; lz <= aoWidth; ++lz) for (int ly = 1; ly <= aoHeight; ++ly) for (int lx = -aoWidth; lx <= aoWidth; ++lx)  {
+                        bVals[x + y * CHUNK_SIZE + z * CHUNK_SIZE * CHUNK_SIZE] += Components::chunkDataGet(neighborChunks, x + lx, y + ly, z + lz) == 0 ? 1 : 0;
+                    }
                 }
+//                bVals[x + y * CHUNK_SIZE + z * CHUNK_SIZE * CHUNK_SIZE] *= 0.25f;
             }
         }
     }
@@ -347,6 +377,8 @@ void ChunkManagement::generateMesh(entt::registry& registry, Components::ChunkSt
                 if (!meshed[x + y * CHUNK_SIZE + z * CHUNK_SIZE * CHUNK_SIZE]) {
                     auto material = Components::chunkDataGet(chunkData, x, y, z);
                     auto brightness = bVals[x + y * CHUNK_SIZE + z * CHUNK_SIZE * CHUNK_SIZE];
+                    bool canUseCheaperVoxelFun = (x > 0 && x < CHUNK_SIZE - 1 && y > 0 && y < CHUNK_SIZE - 1 && z > 0 && z < CHUNK_SIZE - 1);
+
                     if (material != 0 && Components::voxelIsTouchingAir(neighborChunks, x, y, z)) {
 //                    if (material != 0) {
                         int xSize = 0;
@@ -845,8 +877,14 @@ void ChunkManagement::render(entt::registry &registry, int screenWidth, int scre
         view = glm::rotate(view, (float) playerDir.yaw, glm::vec3(0.0f, 1.0f, 0.0f));
         view = glm::translate(view, glm::vec3((float) -(playerPos.pos.x - playerChunkPos.x * CHUNK_SIZE), (float) -(playerPos.pos.y - playerChunkPos.y * CHUNK_SIZE), (float) -(playerPos.pos.z - playerChunkPos.z * CHUNK_SIZE)));
 
+        // move the frustum back a little
+        glm::mat4 frustum = glm::translate(projection, glm::vec3(0, 0, -CHUNK_SIZE));
+        frustum = glm::rotate(frustum, (float) playerDir.pitch, glm::vec3(-1.0f, 0.0f, 0.0f));
+        frustum = glm::rotate(frustum, (float) playerDir.yaw, glm::vec3(0.0f, 1.0f, 0.0f));
+        frustum = glm::translate(frustum, glm::vec3((float) -(playerPos.pos.x - playerChunkPos.x * CHUNK_SIZE), (float) -(playerPos.pos.y - playerChunkPos.y * CHUNK_SIZE), (float) -(playerPos.pos.z - playerChunkPos.z * CHUNK_SIZE)));
 
         voxelShader.use();
+        voxelShader.setFloat("fogDistance", fogDistance);
         voxelShader.setVec3("skyColor", skyColor.r, skyColor.g, skyColor.b);
         voxelShader.setUInt("chunkSize", CHUNK_SIZE);
         voxelShader.setMatrix4("viewProjection", view);
@@ -861,13 +899,14 @@ void ChunkManagement::render(entt::registry &registry, int screenWidth, int scre
             auto [chunkPos, chunkGL] = renderableChunks.get<Components::ChunkPosition, Components::ChunkOpenGL>(c);
 
             if (chunkGL.numInstances > 0) {
-//                std::cout << "Rendering " << chunkGL.numInstances << " instances." << std::endl;
-                voxelShader.setVec3i("chunkPos", chunkPos.x - playerChunkPos.x, chunkPos.y - playerChunkPos.y, chunkPos.z - playerChunkPos.z);
-//                voxelShader.setVec3i("chunkPos", chunkPos.x, chunkPos.y, chunkPos.z);
-//                std::cout << "cx: " << chunkPos.x << " cy: " << chunkPos.y << " cz: " << chunkPos.z << std::endl;
-                glBindVertexArray(chunkGL.vao);
-                glDrawArraysInstanced(GL_TRIANGLES, 0, 36, chunkGL.numInstances);
-                glBindVertexArray(0);
+                glm::vec4 chunkPoint((chunkPos.x - playerChunkPos.x) * CHUNK_SIZE + CHUNK_SIZE / 2, (chunkPos.y - playerChunkPos.y) * CHUNK_SIZE + CHUNK_SIZE / 2, (chunkPos.z - playerChunkPos.z) * CHUNK_SIZE + CHUNK_SIZE / 2, 1);
+                chunkPoint = frustum * chunkPoint;
+                if (chunkPoint.z > 0) {
+                    voxelShader.setVec3i("chunkPos", chunkPos.x - playerChunkPos.x, chunkPos.y - playerChunkPos.y, chunkPos.z - playerChunkPos.z);
+                    glBindVertexArray(chunkGL.vao);
+                    glDrawArraysInstanced(GL_TRIANGLES, 0, 36, chunkGL.numInstances);
+                    glBindVertexArray(0);
+                }
             }
         }
     }

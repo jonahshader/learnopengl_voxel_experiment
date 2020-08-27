@@ -48,6 +48,8 @@ private:
     FastNoise terraceOffset;
     FastNoise terraceSelect;
 
+    float fogDistance;
+
 
     unsigned int cubeVbo;
 
@@ -190,7 +192,6 @@ private:
     static entt::registry* chunkCompareRegistry;
     static bool chunkCompareFun(entt::entity chunk1, entt::entity chunk2);
     // assumes chunk entity already has ChunkData, ChunkStatus,
-    std::thread* threadLaunchPointer;
     void generateChunk(Components::ChunkStatus &chunkStatus,
                        Components::ChunkPosition &chunkPosition, Components::ChunkData &chunkData);
 

@@ -29,10 +29,12 @@ public:
 
     static unsigned char chunkDataGet(ChunkData &data, int x, int y, int z);
     static unsigned char chunkDataGet(ChunkData* chunks[], int x, int y, int z);
+    static unsigned char chunkDataGetOptimizeChoose(ChunkData &data, ChunkData* chunks[], bool optimize, int x, int y, int z);
     static unsigned char chunkDataGetAirBounds(ChunkData &data, int x, int y, int z);
     static void chunkDataSet(ChunkData &data, unsigned char value, int x, int y, int z);
     static bool voxelIsTouchingAir(ChunkData &data, int x, int y, int z);
     static bool voxelIsTouchingAir(ChunkData* chunks[], int x, int y, int z);
+    static bool voxelIsTouchingAirOptimizeChoose(ChunkData &data, ChunkData* chunks[], bool optimize, int x, int y, int z);
 
 
     enum ChunkStatusEnum {

@@ -13,7 +13,7 @@ pMouseX(0.0),
 pMouseY(0.0),
 screenWidth(800),
 screenHeight(600),
-skyColor(0.5f, 0.6f, 0.7f)
+skyColor(0.05f, 0.75f, 1.0f)
 {
     // create player
     entt::entity player = registry.create();
