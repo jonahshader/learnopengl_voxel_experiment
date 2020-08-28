@@ -5,7 +5,7 @@
 #include "Components.h"
 
 unsigned char Components::chunkDataGet(ChunkData &data, int x, int y, int z) {
-    return data.data[z * CHUNK_SIZE * CHUNK_SIZE + y * CHUNK_SIZE + x];
+    return (*data.data)[z * CHUNK_SIZE * CHUNK_SIZE + y * CHUNK_SIZE + x];
 }
 
 unsigned char Components::chunkDataGet(ChunkData* chunks[], int x, int y, int z) {
@@ -21,19 +21,19 @@ unsigned char Components::chunkDataGet(ChunkData* chunks[], int x, int y, int z)
     int yy = y - cy * CHUNK_SIZE;
     int zz = z - cz * CHUNK_SIZE;
 
-    return chunks[i]->data[xx + yy * CHUNK_SIZE + zz * CHUNK_SIZE * CHUNK_SIZE];
+    return (*chunks[i]->data)[xx + yy * CHUNK_SIZE + zz * CHUNK_SIZE * CHUNK_SIZE];
 }
 
 
 void Components::chunkDataSet(ChunkData &data, unsigned char value, int x, int y, int z) {
-    data.data[z * CHUNK_SIZE * CHUNK_SIZE + y * CHUNK_SIZE + x] = value;
+    (*data.data)[z * CHUNK_SIZE * CHUNK_SIZE + y * CHUNK_SIZE + x] = value;
 }
 
 unsigned char Components::chunkDataGetAirBounds(Components::ChunkData &data, int x, int y, int z) {
     if (x < 0 || x >= CHUNK_SIZE || y < 0 || y >= CHUNK_SIZE || z < 0 || z >= CHUNK_SIZE) {
         return 0;
     } else {
-        return data.data[z * CHUNK_SIZE * CHUNK_SIZE + y * CHUNK_SIZE + x];
+        return (*data.data)[z * CHUNK_SIZE * CHUNK_SIZE + y * CHUNK_SIZE + x];
     }
 }
 

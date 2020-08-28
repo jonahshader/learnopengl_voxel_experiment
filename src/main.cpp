@@ -117,19 +117,24 @@ int main() {
         world.updateWindowSize(screenWidthGlobal, screenHeightGlobal);
         world.updateMouse(xMouseGlobal, yMouseGlobal);
         world.updateScroll(xScrollGlobal, yScrollGlobal);
+        double worldRunStartTime = glfwGetTime();
         world.run(dt, window);
+        std::cout << "World run time: " << worldRunStartTime - glfwGetTime() << std::endl;
 
 
         glClearColor(world.getSkyColor().r, world.getSkyColor().g, world.getSkyColor().b, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
+        double worldRenderStartTime = glfwGetTime();
         world.draw(window);
+        std::cout << "World render time: " << worldRenderStartTime - glfwGetTime() << std::endl;
 
         glfwSwapBuffers(window);
         glfwPollEvents();
         double time = glfwGetTime();
         dt = time - pTime;
         pTime = time;
+        glfwSetWindowTitle(window, ("FPS: " + std::to_string(1/dt)).c_str());
     }
 
     glfwTerminate();

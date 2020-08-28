@@ -23,8 +23,8 @@ public:
         // hashtable with voxel xyz as key will yield the actual value
         // of the voxel. this is only for when there is greater than
         // 256 types of blocks.
-        unsigned char data[CHUNK_SIZE * CHUNK_SIZE * CHUNK_SIZE];
-//        std::vector<unsigned char> data;
+//        unsigned char data[CHUNK_SIZE * CHUNK_SIZE * CHUNK_SIZE];
+        std::vector<unsigned char>* data;
     };
 
     static unsigned char chunkDataGet(ChunkData &data, int x, int y, int z);
@@ -47,8 +47,8 @@ public:
     };
 
     struct ChunkStatus {
-        volatile ChunkStatusEnum status;
-        volatile bool markedForRemoval;
+        volatile ChunkStatusEnum* status;
+        volatile bool* markedForRemoval;
     };
 
     struct ChunkMeshData {

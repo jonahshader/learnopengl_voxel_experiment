@@ -5,7 +5,7 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 #set(CMAKE_CXX_FLAGS  "-std=c++2a -fopenmp -O3 -msse2 -msse4.1 -mavx2 -mavx512f -fno-asynchronous-unwind-tables")
-set(CMAKE_CXX_FLAGS  "-std=c++2a -fopenmp -O3")
+set(CMAKE_CXX_FLAGS  "-std=c++2a -fopenmp -O3 -lpthread")
 include_directories("G:/Programming/CLionProjects/learnopengl_voxel_experiment/src")
 
 include_directories("G:/Programming/C++ Libraries/single_header")
@@ -20,6 +20,6 @@ add_executable(${PROJECT_NAME} src/main.cpp src/graphics/Shader.cpp src/graphics
         src/ecs/systems/ChunkManagement.h src/ecs/systems/Physics.cpp src/ecs/systems/Physics.h
         src/ecs/systems/PlayerControl.cpp src/ecs/systems/PlayerControl.h src/other/Constants.h src/ecs/Components.cpp
         src/other/DataTypes.cpp src/other/DataTypes.h src/ecs/World.cpp src/ecs/World.h
-        src/external/fastnoise/FastNoise.h src/external/fastnoise/FastNoise.cpp)
+        src/external/fastnoise/FastNoise.h src/external/fastnoise/FastNoise.cpp src/external/ThreadPool.h)
 target_link_libraries(${PROJECT_NAME} "G:/Programming/C++ Libraries/glfw-3.3.2.bin.WIN64/glfw-3.3.2.bin.WIN64/lib-mingw-w64/libglfw3.a")
 target_link_libraries(${PROJECT_NAME} glad)

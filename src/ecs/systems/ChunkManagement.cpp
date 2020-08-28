@@ -12,17 +12,25 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include <ecs/Components.h>
 #include <thread>
+#include <pthread.h>
+#include <chrono>
 #include <iostream>
+#include <future>
 
 entt::registry* ChunkManagement::chunkCompareRegistry = nullptr;
 Components::Position ChunkManagement::chunkComparePos = {glm::dvec3(0.0)};
 
 ChunkManagement::ChunkManagement(const char* vertexPath, const char* fragmentPath) :
+        chunkKeyToChunkEntity(),
+        chunks(),
+        pool(MAX_CONCURRENT_GENERATES + 1 + MAX_MESH_GENS_PER_FRAME),
+//        chunkGenThreadPool(),
         voxelShader(vertexPath, fragmentPath),
         mainNoise(),
         terraceOffset(),
         terraceSelect(),
         fogDistance(1.0f),
+        chunksCurrentlyGenerating(0),
         cubeVbo(0)
 {
     mainNoise.SetNoiseType(FastNoise::SimplexFractal);
@@ -124,21 +132,22 @@ void ChunkManagement::run(entt::registry &registry) {
         int buffers = 0;
         int generates = 0;
         std::vector<entt::entity> chunksSuccessfullyRemoved;
+        double processTime = glfwGetTime();
         for (auto chunkEntity : chunks) {
             auto [chunkStatus, chunkPosition] = registry.get<Components::ChunkStatus, Components::ChunkPosition>(chunkEntity);
 
             // check if this chunk is in range
             // as long as these chunks are within the unload radius, they can continue loading
 
-            if (chunkStatus.status != Components::ChunkStatusEnum::MESH_BUFFERED) {
+            if (*chunkStatus.status != Components::ChunkStatusEnum::MESH_BUFFERED) {
                 float dist = worldPosChunkPosDist(chunkPosition, playerPos);
                 if (dist < fogDistance)
                     fogDistance = dist;
             }
 
-            if (chunkStatus.markedForRemoval) {
+            if (*chunkStatus.markedForRemoval) {
 //                std::cout << "stat of chunk marked for removal: " << chunkStatus.status << std::endl;
-                switch (chunkStatus.status) {
+                switch (*chunkStatus.status) {
                     case Components::ChunkStatusEnum::NEW:
                     case Components::ChunkStatusEnum::GENERATED_OR_LOADED:
                     case Components::ChunkStatusEnum::MESH_GENERATED:
@@ -151,41 +160,62 @@ void ChunkManagement::run(entt::registry &registry) {
                 }
             } else if (worldPosChunkPosDist(chunkPosition, playerPos) < CHUNK_UNLOAD_RADIUS) {
                 // figure out the status of this chunk is and make it move to the next stage
-                switch (chunkStatus.status) {
+                switch (*chunkStatus.status) {
                     case Components::ChunkStatusEnum::NEW:
-                        if (generates < MAX_GENERATES_PER_FRAME) {
-                            registry.emplace<Components::ChunkData>(chunkEntity); // add chunk data
-                            chunkStatus.status = Components::ChunkStatusEnum::GENERATING_OR_LOADING;
+                        if (generates < MAX_GENERATES_PER_FRAME && chunksCurrentlyGenerating < MAX_CONCURRENT_GENERATES) {
+                            registry.emplace<Components::ChunkData>(chunkEntity, new std::vector<unsigned char>(VOXELS_PER_CHUNK)); // add chunk data
+                            *chunkStatus.status = Components::ChunkStatusEnum::GENERATING_OR_LOADING;
                             auto &chunkData = registry.get<Components::ChunkData>(chunkEntity);
-//                            threadLaunchPointer = new std::thread(generateChunk, std::ref(chunkStatus), std::ref(chunkPosition), std::ref(chunkData), std::ref(mainNoise));
 
-//                            std::thread coolThread(generateChunk, std::ref(chunkStatus), std::ref(chunkPosition), std::ref(chunkData), std::ref(mainNoise));
-//                            coolThread.detach();
-//                            threadLaunchPointer->detach();
-                            double startTime = glfwGetTime();
-                            generateChunk(chunkStatus, chunkPosition, chunkData);
-                            double endTime = glfwGetTime();
-                            std::cout << "Gen time: " << (endTime - startTime) << std::endl;
+//                            double startTime = glfwGetTime();
+
+                            chunksCurrentlyGenerating++;
+//                            std::thread* testThread = new std::thread(&ChunkManagement::generateChunk, this, chunkStatus.status, chunkPosition.x, chunkPosition.y, chunkPosition.z, chunkData.data);
+
+
+//                            auto future = std::async(&ChunkManagement::generateChunk, this, chunkStatus.status, chunkPosition.x, chunkPosition.y, chunkPosition.z, chunkData.data);
+
+//                            new std::thread(&ChunkManagement::generateChunk, this, chunkStatus.status, chunkPosition.x, chunkPosition.y, chunkPosition.z, chunkData.data);
+
+//                            int policy;
+//                            sched_param sch;
+//                            pthread_getschedparam(testThread->native_handle(), &policy, &sch);
+//                            sch.sched_priority = 5;
+//                            testThread->detach();
+
+//                            pool.enqueue([this, chunkStatus.status, chunkPosition.x, chunkPosition.y, chunkPosition.z, chunkData.data]{
+//                                generateChunk(chunkStatus.status, chunkPosition.x, chunkPosition.y, chunkPosition.z, chunkData.data);
+//                            });
+                            pool.enqueue(&ChunkManagement::generateChunk, this, chunkStatus.status, chunkPosition.x, chunkPosition.y, chunkPosition.z, chunkData.data);
+
+
+//                            generateChunk(chunkStatus, chunkPosition, chunkData);
+//                            double endTime = glfwGetTime();
+//                            std::cout << "Gen time: " << (endTime - startTime) << std::endl;
                             ++generates;
                         }
                         break;
                     case Components::ChunkStatusEnum::GENERATED_OR_LOADED:
-                        if (chunkHasAllNeighborData(registry, chunkPosition)) {
-                            // add mesh data
-                            registry.emplace<Components::ChunkMeshData>(chunkEntity);
-                            chunkStatus.status = Components::ChunkStatusEnum::MESH_GENERATING;
-                            auto [chunkData, chunkMeshData] = registry.get<Components::ChunkData, Components::ChunkMeshData>(chunkEntity);
-//                        new std::thread(generateMesh, std::ref(chunkStatus), std::ref(chunkPosition), std::ref(chunkData), std::ref(chunkMeshData));
-                            double startTime = glfwGetTime();
-                            generateMesh(registry, chunkStatus, chunkPosition, chunkData, chunkMeshData);
-                            double endTime = glfwGetTime();
-                            std::cout << "Mesh time: " << (endTime - startTime) << std::endl;
+                        {
+                            double genOrLoadedStartTime = glfwGetTime();
+                            if (chunkHasAllNeighborData(registry, chunkPosition)) {
+                                // add mesh data
+                                registry.emplace<Components::ChunkMeshData>(chunkEntity);
+                                *chunkStatus.status = Components::ChunkStatusEnum::MESH_GENERATING;
+                                auto [chunkData, chunkMeshData] = registry.get<Components::ChunkData, Components::ChunkMeshData>(chunkEntity);
+        //                        new std::thread(generateMesh, std::ref(chunkStatus), std::ref(chunkPosition), std::ref(chunkData), std::ref(chunkMeshData));
+        //                            double startTime = glfwGetTime();
+                                generateMesh(registry, chunkStatus, chunkPosition, chunkData, chunkMeshData);
+        //                            double endTime = glfwGetTime();
+        //                            std::cout << "Mesh time: " << (endTime - startTime) << std::endl;
+                            }
                         }
+
                         break;
                     case Components::ChunkStatusEnum::MESH_GENERATED:
-                        if (buffers < MAX_BUFFERS_PER_FRAME) {
+                        if (buffers < MAX_MESH_GENS_PER_FRAME) {
                             genVboVaoAndBuffer(registry, chunkEntity);
-                            chunkStatus.status = Components::ChunkStatusEnum::MESH_BUFFERED;
+                            *chunkStatus.status = Components::ChunkStatusEnum::MESH_BUFFERED;
                             ++buffers;
                         }
                         break;
@@ -193,9 +223,11 @@ void ChunkManagement::run(entt::registry &registry) {
                         break;
                 }
             } else { // these are outside of the unload radius, so they will be queued for removal
-                chunkStatus.markedForRemoval = true;
+                *chunkStatus.markedForRemoval = true;
             }
         }
+
+        std::cout << "Process time: " << glfwGetTime() - processTime << std::endl;
 
         // shrink fog distance
         fogDistance -= sqrt(3 * pow(CHUNK_SIZE/2, 2));
@@ -210,7 +242,6 @@ void ChunkManagement::run(entt::registry &registry) {
                 }
             }
         }
-
     }
 }
 
@@ -221,7 +252,7 @@ void ChunkManagement::tryCreateChunk(entt::registry &registry, int xChunk, int y
     // if a chunk with this position is not already here, continue making the new chunk entity
     if (found == chunkKeyToChunkEntity.end()) {
         auto entity = registry.create();
-        registry.emplace<Components::ChunkStatus>(entity, Components::ChunkStatusEnum::NEW, false);
+        registry.emplace<Components::ChunkStatus>(entity, new Components::ChunkStatusEnum{Components::ChunkStatusEnum::NEW}, new bool(false));
         registry.emplace<Components::ChunkPosition>(entity, xChunk, yChunk, zChunk);
 
         chunks.emplace_back(entity);
@@ -244,6 +275,15 @@ void ChunkManagement::tryRemoveChunk(entt::registry &registry, entt::entity chun
         glDeleteBuffers(1, &chunkgl.texturesVbo);
         glDeleteBuffers(1, &chunkgl.brightnessesVbo);
     }
+    if (registry.has<Components::ChunkData>(chunkEntity)) {
+        auto &chunkData = registry.get<Components::ChunkData>(chunkEntity);
+        delete chunkData.data;
+        chunkData.data = nullptr;
+    }
+    delete chunkStatus.status;
+    chunkStatus.status = nullptr;
+    delete chunkStatus.markedForRemoval;
+    chunkStatus.markedForRemoval = nullptr;
     // remove from registry
     registry.destroy(chunkEntity);
 }
@@ -270,8 +310,8 @@ bool ChunkManagement::chunkCompareFun(entt::entity chunk1, entt::entity chunk2) 
     return dist1 < dist2;
 }
 
-void ChunkManagement::generateChunk(Components::ChunkStatus &chunkStatus, Components::ChunkPosition &chunkPosition,
-                                    Components::ChunkData &chunkData) {
+void ChunkManagement::generateChunk(volatile Components::ChunkStatusEnum* chunkStatus, int xChunk, int yChunk, int zChunk,
+                                    std::vector<unsigned char>* chunkData) {
 
 //    float* noiseSet = mainNoise->GetSimplexFractalSet(chunkPosition.x * CHUNK_SIZE,
 //                                                  chunkPosition.y * CHUNK_SIZE,
@@ -288,9 +328,9 @@ void ChunkManagement::generateChunk(Components::ChunkStatus &chunkStatus, Compon
         int x = i % CHUNK_SIZE;
         int y = (i / CHUNK_SIZE) % CHUNK_SIZE;
         int z = (i / (CHUNK_SIZE * CHUNK_SIZE));
-        x += chunkPosition.x * CHUNK_SIZE;
-        y += chunkPosition.y * CHUNK_SIZE;
-        z += chunkPosition.z * CHUNK_SIZE;
+        x += xChunk * CHUNK_SIZE;
+        y += yChunk * CHUNK_SIZE;
+        z += zChunk * CHUNK_SIZE;
         float slopeScaler = 0.0025f;
         float slope = -y * slopeScaler;
 
@@ -304,13 +344,13 @@ void ChunkManagement::generateChunk(Components::ChunkStatus &chunkStatus, Compon
 
         float noiseOut = mainNoise.GetNoise(x, y, z) + slope + yModifier;
         if (noiseOut > 0.1) {
-            chunkData.data[i] = 3;
+            (*chunkData)[i] = 3;
         } else if (noiseOut > 0.05) {
-            chunkData.data[i] = 2;
+            (*chunkData)[i] = 2;
         } else if (noiseOut > 0.0) {
-            chunkData.data[i] = 1;
+            (*chunkData)[i] = 1;
         } else {
-            chunkData.data[i] = 0;
+            (*chunkData)[i] = 0;
         }
     }
 
@@ -318,8 +358,9 @@ void ChunkManagement::generateChunk(Components::ChunkStatus &chunkStatus, Compon
 
 
     //update state to GENERATED_OR_LOADED
-    chunkStatus.status = Components::ChunkStatusEnum::GENERATED_OR_LOADED;
+    *chunkStatus = Components::ChunkStatusEnum::GENERATED_OR_LOADED;
 //    std::cout << "Done generating chunk" << std::endl;
+    chunksCurrentlyGenerating--;
 }
 
 void ChunkManagement::generateMesh(entt::registry& registry, Components::ChunkStatus &chunkStatus, Components::ChunkPosition &chunkPosition,
@@ -339,7 +380,7 @@ void ChunkManagement::generateMesh(entt::registry& registry, Components::ChunkSt
     for (int z = 0; z < CHUNK_SIZE; z++) for (int y = 0; y < CHUNK_SIZE - 1; y++) for (int x = 0; x < CHUNK_SIZE; x++) {
         auto mat = Components::chunkDataGet(chunkData, x, (y + 1), z);
         if (mat == 1 || mat == 2) {
-            chunkData.data[x + y * CHUNK_SIZE + z * CHUNK_SIZE * CHUNK_SIZE] = 2;
+            (*chunkData.data)[x + y * CHUNK_SIZE + z * CHUNK_SIZE * CHUNK_SIZE] = 2;
         }
     }
 #pragma omp parallel for
@@ -347,7 +388,7 @@ void ChunkManagement::generateMesh(entt::registry& registry, Components::ChunkSt
         int y = CHUNK_SIZE - 1;
         auto mat = Components::chunkDataGet(neighborChunks, x, (y + 1), z);
         if (mat == 1 || mat == 2) {
-            chunkData.data[x + y * CHUNK_SIZE + z * CHUNK_SIZE * CHUNK_SIZE] = 2;
+            (*chunkData.data)[x + y * CHUNK_SIZE + z * CHUNK_SIZE * CHUNK_SIZE] = 2;
         }
     }
 
@@ -513,7 +554,7 @@ void ChunkManagement::generateMesh(entt::registry& registry, Components::ChunkSt
     }*/
 
     // after generating, change state
-    chunkStatus.status = Components::ChunkStatusEnum::MESH_GENERATED;
+    *chunkStatus.status = Components::ChunkStatusEnum::MESH_GENERATED;
 //    std::cout << "Done generating mesh" << std::endl;
 }
 
@@ -960,9 +1001,9 @@ bool ChunkManagement::chunkHasData(entt::registry &registry, int xChunk, int yCh
     if (found != chunkKeyToChunkEntity.end()) {
         auto chunkEntity = chunkKeyToChunkEntity[key];
         auto &chunkStatus = registry.get<Components::ChunkStatus>(chunkEntity);
-        if (chunkStatus.status == Components::ChunkStatusEnum::GENERATED_OR_LOADED ||
-                chunkStatus.status == Components::ChunkStatusEnum::MESH_GENERATED ||
-                chunkStatus.status == Components::ChunkStatusEnum::MESH_BUFFERED) {
+        if (*chunkStatus.status == Components::ChunkStatusEnum::GENERATED_OR_LOADED ||
+                *chunkStatus.status == Components::ChunkStatusEnum::MESH_GENERATED ||
+                *chunkStatus.status == Components::ChunkStatusEnum::MESH_BUFFERED) {
             return true;
         } else {
             return false;

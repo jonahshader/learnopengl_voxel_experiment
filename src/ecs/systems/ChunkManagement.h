@@ -17,6 +17,7 @@
 #include <other/DataTypes.h>
 #include <graphics/Shader.h>
 #include <glm/glm.hpp>
+#include <external/ThreadPool.h>
 
 
 
@@ -33,14 +34,20 @@ public:
     Shader &getShader();
 
 private:
-    const static int CHUNK_LOAD_RADIUS = 600; // this is in voxels, not chunks
-    const static int CHUNK_UNLOAD_RADIUS = 610; // this is in voxels, not chunks
-    const static int MAX_BUFFERS_PER_FRAME = 1;
-    const static int MAX_GENERATES_PER_FRAME = 2;
+    const static int CHUNK_LOAD_RADIUS = 500; // this is in voxels, not chunks
+    const static int CHUNK_UNLOAD_RADIUS = 550; // this is in voxels, not chunks
+    const static int MAX_MESH_GENS_PER_FRAME = 1;
+    const static int MAX_GENERATES_PER_FRAME = 1;
+    const static int MAX_CONCURRENT_GENERATES = 14;
     const static int NUM_BYTES_PER_VERTEX = 8; // was 6
 
     std::unordered_map<std::string, entt::entity> chunkKeyToChunkEntity;
     std::vector<entt::entity> chunks;
+
+//    std::vector<std::thread> chunkGenThreadPool;
+//    volatile std::vector<bool> chunkGenThreadsRunning;
+
+    ThreadPool pool;
 
     Shader voxelShader;
 
@@ -49,6 +56,8 @@ private:
     FastNoise terraceSelect;
 
     float fogDistance;
+
+    volatile int chunksCurrentlyGenerating;
 
 
     unsigned int cubeVbo;
@@ -96,91 +105,6 @@ private:
             0.f, 0.f, 0.f,  0.f, 1.f,  5.f,
             1.f, 0.f, 1.f,  1.f, 0.f,  5.f,
             0.f, 0.f, 1.f,  0.f, 0.f,  5.f,
-
-/*            0.f, 0.f, 1.f,  0.f, 0.f,  0.f,
-            1.f, 0.f, 1.f,  1.f, 0.f,  0.f,
-            1.f, 1.f, 1.f,  1.f, 1.f,  0.f,
-            0.f, 0.f, 1.f,  0.f, 0.f,  0.f,
-            1.f, 1.f, 1.f,  1.f, 1.f,  0.f,
-            0.f, 1.f, 1.f,  0.f, 1.f,  0.f,
-
-            1.f, 0.f, 1.f,  0.f, 0.f,  1.f,
-            1.f, 0.f, 0.f,  1.f, 0.f,  1.f,
-            1.f, 1.f, 0.f,  1.f, 1.f,  1.f,
-            1.f, 0.f, 1.f,  0.f, 0.f,  1.f,
-            1.f, 1.f, 0.f,  1.f, 1.f,  1.f,
-            1.f, 1.f, 1.f,  0.f, 1.f,  1.f,
-
-            1.f, 0.f, 0.f,  0.f, 0.f,  2.f,
-            0.f, 0.f, 0.f,  1.f, 0.f,  2.f,
-            0.f, 1.f, 0.f,  1.f, 1.f,  2.f,
-            1.f, 0.f, 0.f,  0.f, 0.f,  2.f,
-            0.f, 1.f, 0.f,  1.f, 1.f,  2.f,
-            1.f, 1.f, 0.f,  0.f, 1.f,  2.f,
-
-            0.f, 0.f, 0.f,  0.f, 0.f,  3.f,
-            0.f, 0.f, 1.f,  1.f, 0.f,  3.f,
-            0.f, 1.f, 1.f,  1.f, 1.f,  3.f,
-            0.f, 0.f, 0.f,  0.f, 0.f,  3.f,
-            0.f, 1.f, 1.f,  1.f, 1.f,  3.f,
-            0.f, 1.f, 0.f,  0.f, 1.f,  3.f,
-
-            0.f, 1.f, 1.f,  0.f, 0.f,  4.f,
-            1.f, 1.f, 1.f,  1.f, 0.f,  4.f,
-            1.f, 1.f, 0.f,  1.f, 1.f,  4.f,
-            0.f, 1.f, 1.f,  0.f, 0.f,  4.f,
-            1.f, 1.f, 0.f,  1.f, 1.f,  4.f,
-            0.f, 1.f, 0.f,  0.f, 1.f,  4.f,
-
-            0.f, 0.f, 0.f,  0.f, 0.f,  5.f,
-            1.f, 0.f, 0.f,  1.f, 0.f,  5.f,
-            1.f, 0.f, 1.f,  1.f, 1.f,  5.f,
-            0.f, 0.f, 0.f,  0.f, 0.f,  5.f,
-            1.f, 0.f, 1.f,  1.f, 1.f,  5.f,
-            0.f, 0.f, 1.f,  0.f, 1.f,  5.f,*/
-
-/*
-            0.f, 0.f, 1.f,  0.f, 0.f,  0.f, 0.f, 1.f,
-            1.f, 0.f, 1.f,  1.f, 0.f,  0.f, 0.f, 1.f,
-            1.f, 1.f, 1.f,  1.f, 1.f,  0.f, 0.f, 1.f,
-            0.f, 0.f, 1.f,  0.f, 0.f,  0.f, 0.f, 1.f,
-            1.f, 1.f, 1.f,  1.f, 1.f,  0.f, 0.f, 1.f,
-            0.f, 1.f, 1.f,  0.f, 1.f,  0.f, 0.f, 1.f,
-
-            1.f, 0.f, 1.f,  0.f, 0.f,  1.f, 0.f, 0.f,
-            1.f, 0.f, 0.f,  1.f, 0.f,  1.f, 0.f, 0.f,
-            1.f, 1.f, 0.f,  1.f, 1.f,  1.f, 0.f, 0.f,
-            1.f, 0.f, 1.f,  0.f, 0.f,  1.f, 0.f, 0.f,
-            1.f, 1.f, 0.f,  1.f, 1.f,  1.f, 0.f, 0.f,
-            1.f, 1.f, 1.f,  0.f, 1.f,  1.f, 0.f, 0.f,
-
-            1.f, 0.f, 0.f,  0.f, 0.f,  0.f, 0.f,-1.f,
-            0.f, 0.f, 0.f,  1.f, 0.f,  0.f, 0.f,-1.f,
-            0.f, 1.f, 0.f,  1.f, 1.f,  0.f, 0.f,-1.f,
-            1.f, 0.f, 0.f,  0.f, 0.f,  0.f, 0.f,-1.f,
-            0.f, 1.f, 0.f,  1.f, 1.f,  0.f, 0.f,-1.f,
-            1.f, 1.f, 0.f,  0.f, 1.f,  0.f, 0.f,-1.f,
-
-            0.f, 0.f, 0.f,  0.f, 0.f, -1.f, 0.f, 0.f,
-            0.f, 0.f, 1.f,  1.f, 0.f, -1.f, 0.f, 0.f,
-            0.f, 1.f, 1.f,  1.f, 1.f, -1.f, 0.f, 0.f,
-            0.f, 0.f, 0.f,  0.f, 0.f, -1.f, 0.f, 0.f,
-            0.f, 1.f, 1.f,  1.f, 1.f, -1.f, 0.f, 0.f,
-            0.f, 1.f, 0.f,  0.f, 1.f, -1.f, 0.f, 0.f,
-
-            0.f, 1.f, 1.f,  0.f, 0.f,  0.f, 1.0f, 0.0f,
-            1.f, 1.f, 1.f,  1.f, 0.f,  0.f, 1.0f, 0.0f,
-            1.f, 1.f, 0.f,  1.f, 1.f,  0.f, 1.0f, 0.0f,
-            0.f, 1.f, 1.f,  0.f, 0.f,  0.f, 1.0f, 0.0f,
-            1.f, 1.f, 0.f,  1.f, 1.f,  0.f, 1.0f, 0.0f,
-            0.f, 1.f, 0.f,  0.f, 1.f,  0.f, 1.0f, 0.0f,
-
-            0.f, 0.f, 0.f,  0.f, 0.f,  0.f,-1.0f, 0.0f,
-            1.f, 0.f, 0.f,  1.f, 0.f,  0.f,-1.0f, 0.0f,
-            1.f, 0.f, 1.f,  1.f, 1.f,  0.f,-1.0f, 0.0f,
-            0.f, 0.f, 0.f,  0.f, 0.f,  0.f,-1.0f, 0.0f,
-            1.f, 0.f, 1.f,  1.f, 1.f,  0.f,-1.0f, 0.0f,
-            0.f, 0.f, 1.f,  0.f, 1.f,  0.f,-1.0f, 0.0f*/
     };
 
 
@@ -192,8 +116,8 @@ private:
     static entt::registry* chunkCompareRegistry;
     static bool chunkCompareFun(entt::entity chunk1, entt::entity chunk2);
     // assumes chunk entity already has ChunkData, ChunkStatus,
-    void generateChunk(Components::ChunkStatus &chunkStatus,
-                       Components::ChunkPosition &chunkPosition, Components::ChunkData &chunkData);
+    void generateChunk(volatile Components::ChunkStatusEnum* chunkStatus, int xChunk, int yChunk, int zChunk,
+                       std::vector<unsigned char>* chunkData);
 
     // assumes chunk entity already has ChunkData, ChunkStatus, ChunkMesh
     void generateMesh(entt::registry& registry, Components::ChunkStatus &chunkStatus, Components::ChunkPosition &chunkPosition,
