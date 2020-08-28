@@ -36,7 +36,8 @@ public:
 private:
     const static int CHUNK_LOAD_RADIUS = 500; // this is in voxels, not chunks
     const static int CHUNK_UNLOAD_RADIUS = 550; // this is in voxels, not chunks
-    const static int MAX_MESH_GENS_PER_FRAME = 1;
+    const static int MAX_MESH_BUFFERS_PER_FRAME = 1;
+    const static int MAX_CONCURRENT_MESH_GENS = 8;
     const static int MAX_GENERATES_PER_FRAME = 1;
     const static int MAX_CONCURRENT_GENERATES = 14;
     const static int NUM_BYTES_PER_VERTEX = 8; // was 6
@@ -58,6 +59,7 @@ private:
     float fogDistance;
 
     volatile int chunksCurrentlyGenerating;
+    volatile int chunksCurrentlyMeshing;
 
 
     unsigned int cubeVbo;
@@ -117,11 +119,13 @@ private:
     static bool chunkCompareFun(entt::entity chunk1, entt::entity chunk2);
     // assumes chunk entity already has ChunkData, ChunkStatus,
     void generateChunk(volatile Components::ChunkStatusEnum* chunkStatus, int xChunk, int yChunk, int zChunk,
-                       std::vector<unsigned char>* chunkData);
+                       unsigned char* chunkData);
 
     // assumes chunk entity already has ChunkData, ChunkStatus, ChunkMesh
-    void generateMesh(entt::registry& registry, Components::ChunkStatus &chunkStatus, Components::ChunkPosition &chunkPosition,
-                             Components::ChunkData &chunkData, Components::ChunkMeshData &chunkMeshData);
+    void generateMesh(volatile Components::ChunkStatusEnum* chunkStatus,
+                      unsigned char* chunkData, std::vector<unsigned char>* offsets,
+                      std::vector<unsigned char>* dims, std::vector<unsigned char>* textures,
+                      std::vector<unsigned char>* brightnesses, std::vector<unsigned char*>* neighborChunks);
 
     bool chunkHasAllNeighborData(entt::registry &registry, Components::ChunkPosition &chunkPosition);
 
@@ -129,36 +133,9 @@ private:
 
     Components::ChunkData& getChunkData(entt::registry &registry, int xChunk, int yChunk, int zChunk);
 
-    // outer loop is major, inner loop is minor
-    // slice is the progress in the 3rd direction away from 0, 0, 0
-    static void addSlice(std::vector<unsigned char> &mesh, Components::ChunkData &voxelData,
-                         DataTypes::Axis axis, bool flipped, int slice);
-
-    static unsigned long makeVertex(unsigned char x, unsigned char y, unsigned char z,
-                                    unsigned char tx, unsigned char ty, unsigned char n,
-                                    unsigned char tex, unsigned char b);
-
-    static void makeVertexArray(unsigned char x, unsigned char y, unsigned char z,
-                                unsigned char tx, unsigned char ty, unsigned char n,
-                                unsigned char tex, unsigned char b, unsigned char vertex[]);
-
-    static void addVertexArrayToMesh(std::vector<unsigned char> &mesh, unsigned char vertex[], int numBytesToCopy);
-
     // adds ChunkOpenGL and generates vbo & vao
     // also configures vao
     void genVboVaoAndBuffer(entt::registry& registry, entt::entity chunkEntity);
-
-//    union Vertex {
-//        unsigned long asNum;
-//        unsigned char asArray[8];
-//    };
-
-    union Vertex {
-        unsigned long asNum;
-        unsigned char asArray[8];
-    };
-
-    static void addVertexToMesh(std::vector<unsigned char> &mesh, Vertex vertex, int numBytesToCopy);
 };
 
 

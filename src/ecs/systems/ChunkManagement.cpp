@@ -23,7 +23,7 @@ Components::Position ChunkManagement::chunkComparePos = {glm::dvec3(0.0)};
 ChunkManagement::ChunkManagement(const char* vertexPath, const char* fragmentPath) :
         chunkKeyToChunkEntity(),
         chunks(),
-        pool(MAX_CONCURRENT_GENERATES + 1 + MAX_MESH_GENS_PER_FRAME),
+        pool(MAX_CONCURRENT_GENERATES + 1 + MAX_CONCURRENT_MESH_GENS),
 //        chunkGenThreadPool(),
         voxelShader(vertexPath, fragmentPath),
         mainNoise(),
@@ -31,6 +31,7 @@ ChunkManagement::ChunkManagement(const char* vertexPath, const char* fragmentPat
         terraceSelect(),
         fogDistance(1.0f),
         chunksCurrentlyGenerating(0),
+        chunksCurrentlyMeshing(0),
         cubeVbo(0)
 {
     mainNoise.SetNoiseType(FastNoise::SimplexFractal);
@@ -163,7 +164,7 @@ void ChunkManagement::run(entt::registry &registry) {
                 switch (*chunkStatus.status) {
                     case Components::ChunkStatusEnum::NEW:
                         if (generates < MAX_GENERATES_PER_FRAME && chunksCurrentlyGenerating < MAX_CONCURRENT_GENERATES) {
-                            registry.emplace<Components::ChunkData>(chunkEntity, new std::vector<unsigned char>(VOXELS_PER_CHUNK)); // add chunk data
+                            registry.emplace<Components::ChunkData>(chunkEntity, std::vector<unsigned char>(VOXELS_PER_CHUNK)); // add chunk data
                             *chunkStatus.status = Components::ChunkStatusEnum::GENERATING_OR_LOADING;
                             auto &chunkData = registry.get<Components::ChunkData>(chunkEntity);
 
@@ -186,7 +187,7 @@ void ChunkManagement::run(entt::registry &registry) {
 //                            pool.enqueue([this, chunkStatus.status, chunkPosition.x, chunkPosition.y, chunkPosition.z, chunkData.data]{
 //                                generateChunk(chunkStatus.status, chunkPosition.x, chunkPosition.y, chunkPosition.z, chunkData.data);
 //                            });
-                            pool.enqueue(&ChunkManagement::generateChunk, this, chunkStatus.status, chunkPosition.x, chunkPosition.y, chunkPosition.z, chunkData.data);
+                            pool.enqueue(&ChunkManagement::generateChunk, this, chunkStatus.status, chunkPosition.x, chunkPosition.y, chunkPosition.z, chunkData.data.data());
 
 
 //                            generateChunk(chunkStatus, chunkPosition, chunkData);
@@ -196,24 +197,31 @@ void ChunkManagement::run(entt::registry &registry) {
                         }
                         break;
                     case Components::ChunkStatusEnum::GENERATED_OR_LOADED:
+                        if (chunksCurrentlyMeshing < MAX_CONCURRENT_MESH_GENS)
                         {
-                            double genOrLoadedStartTime = glfwGetTime();
                             if (chunkHasAllNeighborData(registry, chunkPosition)) {
                                 // add mesh data
-                                registry.emplace<Components::ChunkMeshData>(chunkEntity);
+                                registry.emplace<Components::ChunkMeshData>(chunkEntity,
+                                                                            new std::vector<unsigned char>(),
+                                                                            new std::vector<unsigned char>(),
+                                                                            new std::vector<unsigned char>(),
+                                                                            new std::vector<unsigned char>());
                                 *chunkStatus.status = Components::ChunkStatusEnum::MESH_GENERATING;
                                 auto [chunkData, chunkMeshData] = registry.get<Components::ChunkData, Components::ChunkMeshData>(chunkEntity);
-        //                        new std::thread(generateMesh, std::ref(chunkStatus), std::ref(chunkPosition), std::ref(chunkData), std::ref(chunkMeshData));
-        //                            double startTime = glfwGetTime();
-                                generateMesh(registry, chunkStatus, chunkPosition, chunkData, chunkMeshData);
-        //                            double endTime = glfwGetTime();
-        //                            std::cout << "Mesh time: " << (endTime - startTime) << std::endl;
+
+                                std::vector<unsigned char*>* neighborChunks = new std::vector<unsigned char*>(27);
+                                for (int z = 0; z < 3; ++z) for (int y = 0; y < 3; ++y) for (int x = 0; x < 3; ++x) {
+                                    (*neighborChunks)[x + y * 3 + z * 9] = getChunkData(registry, chunkPosition.x + x - 1, chunkPosition.y + y - 1, chunkPosition.z + z - 1).data.data();
+                                }
+                                chunksCurrentlyMeshing++;
+                                pool.enqueue(&ChunkManagement::generateMesh, this, chunkStatus.status, chunkData.data.data(), chunkMeshData.offsets, chunkMeshData.dims, chunkMeshData.textures, chunkMeshData.brightnesses, neighborChunks);
+//                                generateMesh(chunkStatus.status, chunkData.data.data(), chunkMeshData.offsets, chunkMeshData.dims, chunkMeshData.textures, chunkMeshData.brightnesses, neighborChunks);
                             }
                         }
 
                         break;
                     case Components::ChunkStatusEnum::MESH_GENERATED:
-                        if (buffers < MAX_MESH_GENS_PER_FRAME) {
+                        if (buffers < MAX_MESH_BUFFERS_PER_FRAME) {
                             genVboVaoAndBuffer(registry, chunkEntity);
                             *chunkStatus.status = Components::ChunkStatusEnum::MESH_BUFFERED;
                             ++buffers;
@@ -275,10 +283,28 @@ void ChunkManagement::tryRemoveChunk(entt::registry &registry, entt::entity chun
         glDeleteBuffers(1, &chunkgl.texturesVbo);
         glDeleteBuffers(1, &chunkgl.brightnessesVbo);
     }
+    if (registry.has<Components::ChunkMeshData>(chunkEntity)) {
+        auto &chunkMeshData = registry.get<Components::ChunkMeshData>(chunkEntity);
+        if (chunkMeshData.offsets != nullptr) {
+            delete chunkMeshData.offsets;
+            chunkMeshData.offsets = nullptr;
+        }
+        if (chunkMeshData.dims != nullptr) {
+            delete chunkMeshData.dims;
+            chunkMeshData.dims = nullptr;
+        }
+        if (chunkMeshData.textures != nullptr) {
+            delete chunkMeshData.textures;
+            chunkMeshData.textures = nullptr;
+        }
+        if (chunkMeshData.brightnesses != nullptr) {
+            delete chunkMeshData.brightnesses;
+            chunkMeshData.brightnesses = nullptr;
+        }
+    }
+
     if (registry.has<Components::ChunkData>(chunkEntity)) {
         auto &chunkData = registry.get<Components::ChunkData>(chunkEntity);
-        delete chunkData.data;
-        chunkData.data = nullptr;
     }
     delete chunkStatus.status;
     chunkStatus.status = nullptr;
@@ -311,7 +337,7 @@ bool ChunkManagement::chunkCompareFun(entt::entity chunk1, entt::entity chunk2) 
 }
 
 void ChunkManagement::generateChunk(volatile Components::ChunkStatusEnum* chunkStatus, int xChunk, int yChunk, int zChunk,
-                                    std::vector<unsigned char>* chunkData) {
+                                    unsigned char* chunkData) {
 
 //    float* noiseSet = mainNoise->GetSimplexFractalSet(chunkPosition.x * CHUNK_SIZE,
 //                                                  chunkPosition.y * CHUNK_SIZE,
@@ -322,7 +348,7 @@ void ChunkManagement::generateChunk(volatile Components::ChunkStatusEnum* chunkS
 //    chunkData.data.resize(VOXELS_PER_CHUNK);
 
     // convert float data to voxel data
-#pragma omp parallel for
+//#pragma omp parallel for
     for (int i = 0; i < VOXELS_PER_CHUNK; ++i) {
         // convert z y x to x y z indices for FastNoiseSIMD library
         int x = i % CHUNK_SIZE;
@@ -344,13 +370,13 @@ void ChunkManagement::generateChunk(volatile Components::ChunkStatusEnum* chunkS
 
         float noiseOut = mainNoise.GetNoise(x, y, z) + slope + yModifier;
         if (noiseOut > 0.1) {
-            (*chunkData)[i] = 3;
+            (chunkData)[i] = 3;
         } else if (noiseOut > 0.05) {
-            (*chunkData)[i] = 2;
+            (chunkData)[i] = 2;
         } else if (noiseOut > 0.0) {
-            (*chunkData)[i] = 1;
+            (chunkData)[i] = 1;
         } else {
-            (*chunkData)[i] = 0;
+            (chunkData)[i] = 0;
         }
     }
 
@@ -363,38 +389,34 @@ void ChunkManagement::generateChunk(volatile Components::ChunkStatusEnum* chunkS
     chunksCurrentlyGenerating--;
 }
 
-void ChunkManagement::generateMesh(entt::registry& registry, Components::ChunkStatus &chunkStatus, Components::ChunkPosition &chunkPosition,
-                                   Components::ChunkData &chunkData, Components::ChunkMeshData &chunkMeshData) {
+void ChunkManagement::generateMesh(volatile Components::ChunkStatusEnum* chunkStatus,
+                                   unsigned char* chunkData, std::vector<unsigned char>* offsets,
+                                   std::vector<unsigned char>* dims, std::vector<unsigned char>* textures,
+                                   std::vector<unsigned char>* brightnesses, std::vector<unsigned char*>* neighborChunks) {
 
     bool meshed[VOXELS_PER_CHUNK] = {false};
     unsigned char bVals[VOXELS_PER_CHUNK] = {0};
 
 
-
-    Components::ChunkData* neighborChunks[27];
-    for (int z = 0; z < 3; ++z) for (int y = 0; y < 3; ++y) for (int x = 0; x < 3; ++x) {
-        neighborChunks[x + y * 3 + z * 9] = &getChunkData(registry, chunkPosition.x + x - 1, chunkPosition.y + y - 1, chunkPosition.z + z - 1);
-    }
-
-#pragma omp parallel for
+//#pragma omp parallel for
     for (int z = 0; z < CHUNK_SIZE; z++) for (int y = 0; y < CHUNK_SIZE - 1; y++) for (int x = 0; x < CHUNK_SIZE; x++) {
         auto mat = Components::chunkDataGet(chunkData, x, (y + 1), z);
         if (mat == 1 || mat == 2) {
-            (*chunkData.data)[x + y * CHUNK_SIZE + z * CHUNK_SIZE * CHUNK_SIZE] = 2;
+            (chunkData)[x + y * CHUNK_SIZE + z * CHUNK_SIZE * CHUNK_SIZE] = 2;
         }
     }
-#pragma omp parallel for
+//#pragma omp parallel for
     for (int z = 0; z < CHUNK_SIZE; z++) for (int x = 0; x < CHUNK_SIZE; x++) {
         int y = CHUNK_SIZE - 1;
         auto mat = Components::chunkDataGet(neighborChunks, x, (y + 1), z);
         if (mat == 1 || mat == 2) {
-            (*chunkData.data)[x + y * CHUNK_SIZE + z * CHUNK_SIZE * CHUNK_SIZE] = 2;
+            (chunkData)[x + y * CHUNK_SIZE + z * CHUNK_SIZE * CHUNK_SIZE] = 2;
         }
     }
 
     const int aoWidth = 1;
     const int aoHeight = 15;
-#pragma omp parallel for
+//#pragma omp parallel for
     for (int z = 0; z < CHUNK_SIZE; ++z) {
         for(int y = 0; y < CHUNK_SIZE; ++y) {
             for (int x = 0; x < CHUNK_SIZE; ++x) {
@@ -420,8 +442,7 @@ void ChunkManagement::generateMesh(entt::registry& registry, Components::ChunkSt
                     auto brightness = bVals[x + y * CHUNK_SIZE + z * CHUNK_SIZE * CHUNK_SIZE];
                     bool canUseCheaperVoxelFun = (x > 0 && x < CHUNK_SIZE - 1 && y > 0 && y < CHUNK_SIZE - 1 && z > 0 && z < CHUNK_SIZE - 1);
 
-                    if (material != 0 && Components::voxelIsTouchingAir(neighborChunks, x, y, z)) {
-//                    if (material != 0) {
+                    if (material != 0 && Components::voxelIsTouchingAirWithNeighbors(neighborChunks, x, y, z)) {
                         int xSize = 0;
                         int ySize = 1;
                         int zSize = 1;
@@ -432,7 +453,7 @@ void ChunkManagement::generateMesh(entt::registry& registry, Components::ChunkSt
                         !meshed[xCurrent + y * CHUNK_SIZE + z * CHUNK_SIZE * CHUNK_SIZE] &&
                         Components::chunkDataGet(chunkData, xCurrent, y, z) == material &&
                         bVals[xCurrent + y * CHUNK_SIZE + z * CHUNK_SIZE * CHUNK_SIZE] == brightness &&
-                        Components::voxelIsTouchingAir(neighborChunks, xCurrent, y, z)) {
+                                Components::voxelIsTouchingAirWithNeighbors(neighborChunks, xCurrent, y, z)) {
                             ++xCurrent;
                             ++xSize;
                         }
@@ -441,9 +462,7 @@ void ChunkManagement::generateMesh(entt::registry& registry, Components::ChunkSt
                                 if (!meshed[xl + yl * CHUNK_SIZE + z * CHUNK_SIZE * CHUNK_SIZE] &&
                                 Components::chunkDataGet(chunkData, xl, yl, z) == material &&
                                 bVals[xl + yl * CHUNK_SIZE + z * CHUNK_SIZE * CHUNK_SIZE] == brightness &&
-                                    Components::voxelIsTouchingAir(neighborChunks, xl, yl, z)) {
-//                                if (!meshed[xl + yl * CHUNK_SIZE + z * CHUNK_SIZE * CHUNK_SIZE] &&
-//                                Components::chunkDataGetAirBounds(chunkData, xl, yl, z) == material) {
+                                        Components::voxelIsTouchingAirWithNeighbors(neighborChunks, xl, yl, z)) {
                                 } else {
                                     goto exitLoops;
                                 }
@@ -458,9 +477,7 @@ void ChunkManagement::generateMesh(entt::registry& registry, Components::ChunkSt
                                     if (!meshed[xl + yl * CHUNK_SIZE + zl * CHUNK_SIZE * CHUNK_SIZE] &&
                                         Components::chunkDataGet(chunkData, xl, yl, zl) == material &&
                                         bVals[xl + yl * CHUNK_SIZE + zl * CHUNK_SIZE * CHUNK_SIZE] == brightness &&
-                                        Components::voxelIsTouchingAir(neighborChunks, xl, yl, zl)) {
-//                                if (!meshed[xl + yl * CHUNK_SIZE + z * CHUNK_SIZE * CHUNK_SIZE] &&
-//                                Components::chunkDataGetAirBounds(chunkData, xl, yl, z) == material) {
+                                            Components::voxelIsTouchingAirWithNeighbors(neighborChunks, xl, yl, zl)) {
                                     } else {
                                         goto exitLoops2;
                                     }
@@ -480,343 +497,67 @@ void ChunkManagement::generateMesh(entt::registry& registry, Components::ChunkSt
 
 
                         // make mesh
-                        chunkMeshData.brightnesses.emplace_back(brightness);
+                        brightnesses->emplace_back(brightness);
 
                         switch (material) {
                             case 1:
-                                chunkMeshData.textures.emplace_back(1);
-                                chunkMeshData.textures.emplace_back(1);
-                                chunkMeshData.textures.emplace_back(1);
-                                chunkMeshData.textures.emplace_back(1);
-                                chunkMeshData.textures.emplace_back(0);
-                                chunkMeshData.textures.emplace_back(2);
+                                textures->emplace_back(1);
+                                textures->emplace_back(1);
+                                textures->emplace_back(1);
+                                textures->emplace_back(1);
+                                textures->emplace_back(0);
+                                textures->emplace_back(2);
                                 break;
                             case 2:
-                                chunkMeshData.textures.emplace_back(2);
-                                chunkMeshData.textures.emplace_back(2);
-                                chunkMeshData.textures.emplace_back(2);
-                                chunkMeshData.textures.emplace_back(2);
-                                chunkMeshData.textures.emplace_back(2);
-                                chunkMeshData.textures.emplace_back(2);
+                                textures->emplace_back(2);
+                                textures->emplace_back(2);
+                                textures->emplace_back(2);
+                                textures->emplace_back(2);
+                                textures->emplace_back(2);
+                                textures->emplace_back(2);
                                 break;
                             case 3:
-                                chunkMeshData.textures.emplace_back(3);
-                                chunkMeshData.textures.emplace_back(3);
-                                chunkMeshData.textures.emplace_back(3);
-                                chunkMeshData.textures.emplace_back(3);
-                                chunkMeshData.textures.emplace_back(3);
-                                chunkMeshData.textures.emplace_back(3);
+                                textures->emplace_back(3);
+                                textures->emplace_back(3);
+                                textures->emplace_back(3);
+                                textures->emplace_back(3);
+                                textures->emplace_back(3);
+                                textures->emplace_back(3);
                                 break;
                         }
 
 
-                        chunkMeshData.offsets.emplace_back(x);
-                        chunkMeshData.offsets.emplace_back(y);
-                        chunkMeshData.offsets.emplace_back(z);
+                        offsets->emplace_back(x);
+                        offsets->emplace_back(y);
+                        offsets->emplace_back(z);
 
-                        chunkMeshData.dims.emplace_back(xSize);
-                        chunkMeshData.dims.emplace_back(ySize);
-                        chunkMeshData.dims.emplace_back(zSize);
+                        dims->emplace_back(xSize);
+                        dims->emplace_back(ySize);
+                        dims->emplace_back(zSize);
 
-//                        x += xSize; //TODO: test optimization
-//                        std::cout << x << " " << y << " " << z << " " << xSize << " " << ySize << " " << zSize << std::endl;
-//                        std::cout << "made something" << std::endl;
                     }
                 }
             }
         }
     }
 
-/*    for (int z = 0; z < CHUNK_SIZE; z++) {
-        for (int y = 0; y < CHUNK_SIZE; y++) {
-            for (int x = 0; x < CHUNK_SIZE; x++) {
-                if (Components::chunkDataGet(chunkData, x, y, z) == 1 &&
-                Components::voxelIsTouchingAir(chunkData, x, y, z)) {
-                    chunkMeshData.brightnesses.emplace_back(15);
-
-                    chunkMeshData.textures.emplace_back(1);
-                    chunkMeshData.textures.emplace_back(1);
-                    chunkMeshData.textures.emplace_back(1);
-                    chunkMeshData.textures.emplace_back(1);
-                    chunkMeshData.textures.emplace_back(0);
-                    chunkMeshData.textures.emplace_back(2);
-
-                    chunkMeshData.offsets.emplace_back(x);
-                    chunkMeshData.offsets.emplace_back(y);
-                    chunkMeshData.offsets.emplace_back(z);
-
-                    chunkMeshData.dims.emplace_back(1);
-                    chunkMeshData.dims.emplace_back(1);
-                    chunkMeshData.dims.emplace_back(1);
-                }
-            }
-        }
-    }*/
 
     // after generating, change state
-    *chunkStatus.status = Components::ChunkStatusEnum::MESH_GENERATED;
+    *chunkStatus = Components::ChunkStatusEnum::MESH_GENERATED;
 //    std::cout << "Done generating mesh" << std::endl;
+    // also, i dont need that neighborChunks vector anymore. dont wanna leak memory :>
+    neighborChunks->clear();
+    delete neighborChunks;
+    neighborChunks = nullptr;
+    chunksCurrentlyMeshing--;
 }
 
-void ChunkManagement::addSlice(std::vector<unsigned char> &mesh, Components::ChunkData &voxelData,
-                              DataTypes::Axis axis, bool flipped, int slice) {
-    // position to move through slice
-    int x = 0;
-    int y = 0;
-    int z = 0;
-
-    int xSolidLayerOffset = 0;
-    int ySolidLayerOffset = 0;
-    int zSolidLayerOffset = 0;
-
-    int* majorAxis;
-    int* minorAxis;
-    int* normalAxis;
-
-    switch (axis) {
-        default:
-        case DataTypes::X:
-            x = slice;
-            majorAxis = &z;
-            minorAxis = &y;
-            normalAxis = &x;
-            xSolidLayerOffset = -1;
-            break;
-        case DataTypes::Y:
-            y = slice;
-//            majorAxis = &z;
-//            minorAxis = &x;
-            majorAxis = &x;
-            minorAxis = &z;
-            normalAxis = &y;
-            ySolidLayerOffset = -1;
-            break;
-        case DataTypes::Z:
-            z = slice;
-            majorAxis = &y;
-            minorAxis = &x;
-            normalAxis = &z;
-            zSolidLayerOffset = -1;
-            break;
-    }
-
-    // if flipped, swap air solid layers
-    if (flipped) {
-        --(*normalAxis);
-        xSolidLayerOffset *= -1;
-        ySolidLayerOffset *= -1;
-        zSolidLayerOffset *= -1;
-    }
-
-    bool record[CHUNK_SIZE][CHUNK_SIZE] = {{false}};
-
-    // loop modifies major and minor axis, which is one of x y z
-    // now i can just use x y z instead of doing logic in the for loops
-    // to figure out what plane the algo is running on
-    for (*majorAxis = 0; (*majorAxis) < CHUNK_SIZE; ++(*majorAxis)) {
-        for (*minorAxis = 0; (*minorAxis) < CHUNK_SIZE; ++(*minorAxis)) {
-            // if this spot has not been meshed yet,
-            if (!record[*majorAxis][*minorAxis]) {
-                auto material = Components::chunkDataGetAirBounds(voxelData, x + xSolidLayerOffset, y + ySolidLayerOffset, z + zSolidLayerOffset);
-                // if this voxel is not air and the face is visible,
-                if (material != 0 && Components::chunkDataGetAirBounds(voxelData, x, y, z) == 0) {
-                    // build quad
-                    int majorSize = 0; // "height"
-                    int minorSize = 0; // "width"
-                    // record current major minor axis values so that I can put them back later
-                    // also used for generating vertices
-                    int majorAxisStart = *majorAxis;
-                    int minorAxisStart = *minorAxis;
-
-                    // figure out how "wide" our quad will be (by width i mean minorSize)
-                    while (Components::chunkDataGetAirBounds(voxelData, x + xSolidLayerOffset, y + ySolidLayerOffset, z + zSolidLayerOffset) == material
-                    && !record[*majorAxis][*minorAxis]
-                    && Components::chunkDataGetAirBounds(voxelData, x, y, z) == 0
-                    && *minorAxis < CHUNK_SIZE) {
-                        ++(*minorAxis);
-                        ++minorSize;
-                    }
-
-                    ++majorSize;
-
-                    for (*majorAxis = majorAxisStart + 1; *majorAxis < CHUNK_SIZE; ++(*majorAxis)) {
-                        for (*minorAxis = minorAxisStart; *minorAxis < minorAxisStart + minorSize; ++(*minorAxis)) {
-
-                            // if this piece was already meshed (already in the record)
-                            // or the read layer is not the same material
-                            // or the face is not visible,
-                            // then break out of these loops
-                            if (record[*majorAxis][*minorAxis]
-                            || Components::chunkDataGetAirBounds(voxelData, x + xSolidLayerOffset, y + ySolidLayerOffset, z + zSolidLayerOffset) != material
-                            || Components::chunkDataGetAirBounds(voxelData, x, y, z) != 0) {
-                                goto exitLoops;
-                            }
-                        }
-                        ++majorSize;
-                    }
-                    exitLoops:
-
-                    // return old value to major and minor axis
-                    *majorAxis = majorAxisStart;
-                    *minorAxis = minorAxisStart;
-
-//                    std::cout << "MAS " << majorAxisStart << " mAS " << minorAxisStart;
-//                    std::cout << " Ms " << majorSize << " ms " << minorSize << std::endl;
-
-                    // record meshed tiles
-                    for (int yy = majorAxisStart; yy < majorAxisStart + majorSize; ++yy) {
-                        for (int xx = minorAxisStart; xx < minorAxisStart + minorSize; ++xx) {
-//                            std::cout << "M: " << *majorAxis << " m: " << *minorAxis << std::endl;
-                            record[yy][xx] = true;
-                        }
-                    }
-
-
-
-                    /**
-                    name | bits | offset
-                    x      6      0
-                    y      6      6
-                    z      6      12
-                    tx     6      18
-                    ty     6      24
-                    n      3      30
-                    tex    8      33
-                    b      4      41
-                     */
-
-                    // i now have the stuff to make the quad
-
-                    // make vertices counter clockwise
-//                    Vertex v1{}, v2{}, v3{}, v4{};
-//                    v1.asNum = 0;
-//                    v2.asNum = 0;
-//                    v3.asNum = 0;
-//                    v4.asNum = 0;
-                    unsigned char v1[NUM_BYTES_PER_VERTEX];
-                    unsigned char v2[NUM_BYTES_PER_VERTEX];
-                    unsigned char v3[NUM_BYTES_PER_VERTEX];
-                    unsigned char v4[NUM_BYTES_PER_VERTEX];
-
-                    unsigned char normalFlipInc = flipped ? 3 : 0;
-                    switch (axis) {
-                        case DataTypes::X: // major = z, minor = y
-//                            std::cout << x << " " << y << " " << z << " " << majorSize << " " << minorSize << std::endl;
-//                            v1.asNum = makeVertex(x, y, z, 0, 0, 0 + normalFlipInc, material - 1, 15);
-//                            v2.asNum = makeVertex(x, y, z + majorSize, majorSize, 0, 0 + normalFlipInc, material - 1, 15);
-//                            v3.asNum = makeVertex(x, y + minorSize, z + majorSize, majorSize, minorSize, 0 + normalFlipInc, material - 1, 15);
-//                            v4.asNum = makeVertex(x, y + minorSize, z, 0, minorSize, 0 + normalFlipInc, material - 1, 15);
-                            makeVertexArray(x, y, z, 0, 0, 0 + normalFlipInc, material - 1, 15, v1);
-                            makeVertexArray(x, y, z + majorSize, majorSize, 0, 0 + normalFlipInc, material - 1, 15, v2);
-                            makeVertexArray(x, y + minorSize, z + majorSize, majorSize, minorSize, 0 + normalFlipInc, material - 1, 15, v3);
-                            makeVertexArray(x, y + minorSize, z, 0, minorSize, 0 + normalFlipInc, material - 1, 15, v4);
-                            break;
-                        case DataTypes::Y: // major = z, minor = x
-//                            v1.asNum = makeVertex(x, y, z, 0, 0, 1 + normalFlipInc, material - 1, 15);
-//                            v2.asNum = makeVertex(x, y, z + majorSize, majorSize, 0, 1 + normalFlipInc, material - 1, 15);
-//                            v3.asNum = makeVertex(x + minorSize, y, z + majorSize, majorSize, minorSize, 1 + normalFlipInc, material - 1, 15);
-//                            v4.asNum = makeVertex(x + minorSize, y, z, 0, minorSize, 1 + normalFlipInc, material - 1, 15);
-                            makeVertexArray(x, y, z, 0, 0, 1 + normalFlipInc, material - 1, 15, v1);
-                            makeVertexArray(x, y, z + majorSize, majorSize, 0, 1 + normalFlipInc, material - 1, 15, v2);
-                            makeVertexArray(x + minorSize, y, z + majorSize, majorSize, minorSize, 1 + normalFlipInc, material - 1, 15, v3);
-                            makeVertexArray(x + minorSize, y, z, 0, minorSize, 1 + normalFlipInc, material - 1, 15, v4);
-                            break;
-                        case DataTypes::Z: // major = y, minor = x
-//                            v1.asNum = makeVertex(x, y, z, 0, 0, 2 + normalFlipInc, material - 1, 15);
-//                            v2.asNum = makeVertex(x, y + majorSize, z, majorSize, 0, 2 + normalFlipInc, material - 1, 15);
-//                            v3.asNum = makeVertex(x + minorSize, y + majorSize, z, majorSize, minorSize, 2 + normalFlipInc, material - 1, 15);
-//                            v4.asNum = makeVertex(x + minorSize, y, z, 0, minorSize, 2 + normalFlipInc, material - 1, 15);
-                            makeVertexArray(x, y, z, 0, 0, 2 + normalFlipInc, material - 1, 15, v1);
-                            makeVertexArray(x, y + majorSize, z, majorSize, 0, 2 + normalFlipInc, material - 1, 15, v2);
-                            makeVertexArray(x + minorSize, y + majorSize, z, majorSize, minorSize, 2 + normalFlipInc, material - 1, 15, v3);
-                            makeVertexArray(x + minorSize, y, z, 0, minorSize, 2 + normalFlipInc, material - 1, 15, v4);
-                            break;
-                        default:
-                            break;
-                    }
-
-                    // add quad
-                    // if flipped, add clockwise instead of counter clockwise
-//                    if (flipped) {
-//                        // top left tri
-//                        addVertexToMesh(mesh, v1, NUM_BYTES_PER_VERTEX);
-//                        addVertexToMesh(mesh, v4, NUM_BYTES_PER_VERTEX);
-//                        addVertexToMesh(mesh, v2, NUM_BYTES_PER_VERTEX);
-//                        // bottom right tri
-//                        addVertexToMesh(mesh, v2, NUM_BYTES_PER_VERTEX);
-//                        addVertexToMesh(mesh, v4, NUM_BYTES_PER_VERTEX);
-//                        addVertexToMesh(mesh, v3, NUM_BYTES_PER_VERTEX);
-//                    } else {
-//                        // top left tri
-//                        addVertexToMesh(mesh, v1, NUM_BYTES_PER_VERTEX);
-//                        addVertexToMesh(mesh, v2, NUM_BYTES_PER_VERTEX);
-//                        addVertexToMesh(mesh, v4, NUM_BYTES_PER_VERTEX);
-//                        // bottom right tri
-//                        addVertexToMesh(mesh, v2, NUM_BYTES_PER_VERTEX);
-//                        addVertexToMesh(mesh, v3, NUM_BYTES_PER_VERTEX);
-//                        addVertexToMesh(mesh, v4, NUM_BYTES_PER_VERTEX);
-//                    }
-                    if (flipped) {
-                        // top left tri
-                        addVertexArrayToMesh(mesh, v1, NUM_BYTES_PER_VERTEX);
-                        addVertexArrayToMesh(mesh, v4, NUM_BYTES_PER_VERTEX);
-                        addVertexArrayToMesh(mesh, v2, NUM_BYTES_PER_VERTEX);
-                        // bottom right tri
-                        addVertexArrayToMesh(mesh, v2, NUM_BYTES_PER_VERTEX);
-                        addVertexArrayToMesh(mesh, v4, NUM_BYTES_PER_VERTEX);
-                        addVertexArrayToMesh(mesh, v3, NUM_BYTES_PER_VERTEX);
-                    } else {
-                        // top left tri
-                        addVertexArrayToMesh(mesh, v1, NUM_BYTES_PER_VERTEX);
-                        addVertexArrayToMesh(mesh, v2, NUM_BYTES_PER_VERTEX);
-                        addVertexArrayToMesh(mesh, v4, NUM_BYTES_PER_VERTEX);
-                        // bottom right tri
-                        addVertexArrayToMesh(mesh, v2, NUM_BYTES_PER_VERTEX);
-                        addVertexArrayToMesh(mesh, v3, NUM_BYTES_PER_VERTEX);
-                        addVertexArrayToMesh(mesh, v4, NUM_BYTES_PER_VERTEX);
-                    }
-//                    todo: there is an optimization to be made here.
-//                     minorAxis could be minorAxisStart + minorSize possibly
-//                    *majorAxis = majorAxisStart;
-//                    *minorAxis = minorAxisStart + minorSize;
-                }
-            }
-        }
-    }
-}
-
-
-unsigned long ChunkManagement::makeVertex(unsigned char x, unsigned char y, unsigned char z,
-                                          unsigned char tx, unsigned char ty, unsigned char n,
-                                          unsigned char tex, unsigned char b) {
-//    return x | y << 6u | z << 12u | tx << 18u | ty << 24u | n << 30u | tex << 33ul | b << 41ul;
-//    return x | y << 8 | z << 16 | tx << 24 | ty << 32 | n << 40 | tex << 48 | b << 56;
-        return b | tex << 8 | n << 16 | ty << 24 | tx << 32 | z << 40 | y << 48 | x << 56;
-//    return b | tex << 8 | n << 12 | ty << 15 | tx << 21 | z << 27 | y << 33 | x << 39;
-//    return x | y << 6u | z << 12u | tx << 18u | ty << 24u;
-}
-
-void ChunkManagement::addVertexToMesh(std::vector<unsigned char> &mesh, Vertex vertex, int numBytesToCopy) {
-//    for (int i = 0; i < numBytesToCopy; i++) {
-//        mesh.push_back(vertex.asArray[i]);
-//    }
-//    for (unsigned int i = 0; i < numBytesToCopy; i++) {
-//        mesh.push_back((vertex.asNum >> (8 * i)) & 0xFF);
-//    }
-    for (int i = numBytesToCopy; i >= 0; --i) {
-        mesh.push_back(vertex.asArray[i]);
-    }
-}
 
 void ChunkManagement::genVboVaoAndBuffer(entt::registry& registry, entt::entity chunkEntity) {
-    // clear errors
-//    while (glGetError() != 0)
-//    std::cout << "before: " << glGetError() << std::endl;
-
     registry.emplace<Components::ChunkOpenGL>(chunkEntity);
     auto [gl, mesh] = registry.get<Components::ChunkOpenGL, Components::ChunkMeshData>(chunkEntity);
     // set numTriangles for rendering later
-    gl.numInstances = mesh.brightnesses.size();
+    gl.numInstances = mesh.brightnesses->size();
 
     glGenVertexArrays(1, &gl.vao);
     glGenBuffers(1, &gl.offsetsVbo);
@@ -824,17 +565,19 @@ void ChunkManagement::genVboVaoAndBuffer(entt::registry& registry, entt::entity 
     glGenBuffers(1, &gl.texturesVbo);
     glGenBuffers(1, &gl.brightnessesVbo);
 
+    std::cout <<mesh.offsets->size() << std::endl;
+
     glBindBuffer(GL_ARRAY_BUFFER, gl.offsetsVbo);
-    glBufferData(GL_ARRAY_BUFFER, mesh.offsets.size() * sizeof(unsigned char), mesh.offsets.data(), GL_STATIC_DRAW);
+    glBufferData(GL_ARRAY_BUFFER, mesh.offsets->size() * sizeof(unsigned char), mesh.offsets->data(), GL_STATIC_DRAW);
 
     glBindBuffer(GL_ARRAY_BUFFER, gl.dimsVbo);
-    glBufferData(GL_ARRAY_BUFFER, mesh.dims.size() * sizeof(unsigned char), mesh.dims.data(), GL_STATIC_DRAW);
+    glBufferData(GL_ARRAY_BUFFER, mesh.dims->size() * sizeof(unsigned char), mesh.dims->data(), GL_STATIC_DRAW);
 
     glBindBuffer(GL_ARRAY_BUFFER, gl.texturesVbo);
-    glBufferData(GL_ARRAY_BUFFER, mesh.textures.size() * sizeof(unsigned char), mesh.textures.data(), GL_STATIC_DRAW);
+    glBufferData(GL_ARRAY_BUFFER, mesh.textures->size() * sizeof(unsigned char), mesh.textures->data(), GL_STATIC_DRAW);
 
     glBindBuffer(GL_ARRAY_BUFFER, gl.brightnessesVbo);
-    glBufferData(GL_ARRAY_BUFFER, mesh.brightnesses.size() * sizeof(unsigned char), mesh.brightnesses.data(), GL_STATIC_DRAW);
+    glBufferData(GL_ARRAY_BUFFER, mesh.brightnesses->size() * sizeof(unsigned char), mesh.brightnesses->data(), GL_STATIC_DRAW);
 
     glBindBuffer(GL_ARRAY_BUFFER, 0);
 
@@ -885,6 +628,22 @@ void ChunkManagement::genVboVaoAndBuffer(entt::registry& registry, entt::entity 
     glBindVertexArray(0);
 
     // delete mesh data as it is no longer needed
+    if (mesh.offsets != nullptr) {
+        delete mesh.offsets;
+        mesh.offsets = nullptr;
+    }
+    if (mesh.dims != nullptr) {
+        delete mesh.dims;
+        mesh.dims = nullptr;
+    }
+    if (mesh.textures != nullptr) {
+        delete mesh.textures;
+        mesh.textures = nullptr;
+    }
+    if (mesh.brightnesses != nullptr) {
+        delete mesh.brightnesses;
+        mesh.brightnesses = nullptr;
+    }
     registry.remove<Components::ChunkMeshData>(chunkEntity);
 }
 
@@ -955,27 +714,6 @@ void ChunkManagement::render(entt::registry &registry, int screenWidth, int scre
 
 Shader &ChunkManagement::getShader() {
     return voxelShader;
-}
-
-void ChunkManagement::makeVertexArray(unsigned char x, unsigned char y, unsigned char z,
-                                      unsigned char tx, unsigned char ty, unsigned char n,
-                                      unsigned char tex, unsigned char b, unsigned char vertex[]) {
-    vertex[0] = x;
-    vertex[1] = y;
-    vertex[2] = z;
-    vertex[3] = tx;
-    vertex[4] = ty;
-    vertex[5] = n;
-    vertex[6] = tex;
-    vertex[7] = b;
-//    std::cout << (int)tx << " " << (int)ty << std::endl;
-}
-
-void ChunkManagement::addVertexArrayToMesh(std::vector<unsigned char> &mesh, unsigned char vertex[],
-                                           int numBytesToCopy) {
-    for (int i = 0; i < numBytesToCopy; i++) {
-        mesh.push_back(vertex[i]);
-    }
 }
 
 bool ChunkManagement::chunkHasAllNeighborData(entt::registry &registry, Components::ChunkPosition &chunkPosition) {

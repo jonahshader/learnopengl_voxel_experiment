@@ -24,17 +24,17 @@ public:
         // of the voxel. this is only for when there is greater than
         // 256 types of blocks.
 //        unsigned char data[CHUNK_SIZE * CHUNK_SIZE * CHUNK_SIZE];
-        std::vector<unsigned char>* data;
+        std::vector<unsigned char> data;
     };
 
-    static unsigned char chunkDataGet(ChunkData &data, int x, int y, int z);
-    static unsigned char chunkDataGet(ChunkData* chunks[], int x, int y, int z);
-    static unsigned char chunkDataGetOptimizeChoose(ChunkData &data, ChunkData* chunks[], bool optimize, int x, int y, int z);
-    static unsigned char chunkDataGetAirBounds(ChunkData &data, int x, int y, int z);
-    static void chunkDataSet(ChunkData &data, unsigned char value, int x, int y, int z);
-    static bool voxelIsTouchingAir(ChunkData &data, int x, int y, int z);
-    static bool voxelIsTouchingAir(ChunkData* chunks[], int x, int y, int z);
-    static bool voxelIsTouchingAirOptimizeChoose(ChunkData &data, ChunkData* chunks[], bool optimize, int x, int y, int z);
+    static unsigned char chunkDataGet(unsigned char* data, int x, int y, int z);
+    static unsigned char chunkDataGet(std::vector<unsigned char*>* chunks, int x, int y, int z);
+//    static unsigned char chunkDataGetOptimizeChoose(ChunkData &data, ChunkData* chunks[], bool optimize, int x, int y, int z);
+    static unsigned char chunkDataGetAirBounds(unsigned char* data, int x, int y, int z);
+    static void chunkDataSet(unsigned char* data, unsigned char value, int x, int y, int z);
+    static bool voxelIsTouchingAirAirBounds(unsigned char* data, int x, int y, int z);
+    static bool voxelIsTouchingAirWithNeighbors(std::vector<unsigned char*>* chunks, int x, int y, int z);
+//    static bool voxelIsTouchingAirOptimizeChoose(ChunkData &data, ChunkData* chunks[], bool optimize, int x, int y, int z);
 
 
     enum ChunkStatusEnum {
@@ -52,10 +52,10 @@ public:
     };
 
     struct ChunkMeshData {
-        std::vector<unsigned char> offsets;
-        std::vector<unsigned char> dims;
-        std::vector<unsigned char> textures;
-        std::vector<unsigned char> brightnesses;
+        std::vector<unsigned char>* offsets;
+        std::vector<unsigned char>* dims;
+        std::vector<unsigned char>* textures;
+        std::vector<unsigned char>* brightnesses;
     };
 
     struct ChunkPosition {
