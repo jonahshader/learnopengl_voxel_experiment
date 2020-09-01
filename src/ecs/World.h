@@ -16,7 +16,8 @@
 
 class World {
 public:
-    World(const char* vertexPath, const char* fragmentPath);
+    World(const char* vertexPathInst, const char* fragmentPathInst,
+          const char* vertexPathTri, const char* fragmentPathTri);
 
     void run(double dt, GLFWwindow *window);
     void draw(GLFWwindow *window);

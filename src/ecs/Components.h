@@ -58,19 +58,29 @@ public:
         std::vector<unsigned char>* brightnesses;
     };
 
+    struct ChunkMeshDataTris {
+        std::vector<unsigned char>* tris;
+    };
+
     struct ChunkPosition {
         int x;
         int y;
         int z;
     };
 
-    struct ChunkOpenGL {
+    struct ChunkOpenGLInstanceVer {
         unsigned int offsetsVbo;
         unsigned int dimsVbo;
         unsigned int texturesVbo;
         unsigned int brightnessesVbo;
         unsigned int vao;
         unsigned int numInstances;
+    };
+
+    struct ChunkOpenGLTriVer {
+        unsigned int vbo;
+        unsigned int vao;
+        unsigned int numTriangles;
     };
 
     struct ChunkEntities {

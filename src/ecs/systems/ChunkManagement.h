@@ -23,7 +23,8 @@
 
 class ChunkManagement {
 public:
-    ChunkManagement(const char* vertexPath, const char* fragmentPath);
+    ChunkManagement(const char* vertexPathInstVer, const char* fragmentPathInstVer,
+                    const char* vertexPathTriVer, const char* fragmentPathTriVer);
 
     entt::entity* getChunk(int xChunk, int yChunk, int zChunk); // returns nullptr if the chunk was not found
     void run(entt::registry& registry);
@@ -34,27 +35,29 @@ public:
     Shader &getShader();
 
 private:
-    const static int CHUNK_LOAD_RADIUS = 500; // this is in voxels, not chunks
-    const static int CHUNK_UNLOAD_RADIUS = 550; // this is in voxels, not chunks
+    const static int CHUNK_LOAD_RADIUS = 750; // this is in voxels, not chunks
+    const static int CHUNK_UNLOAD_RADIUS = 760; // this is in voxels, not chunks
     const static int MAX_MESH_BUFFERS_PER_FRAME = 1;
     const static int MAX_CONCURRENT_MESH_GENS = 8;
     const static int MAX_GENERATES_PER_FRAME = 1;
-    const static int MAX_CONCURRENT_GENERATES = 14;
+    const static int MAX_CONCURRENT_GENERATES = 10;
     const static int NUM_BYTES_PER_VERTEX = 8; // was 6
 
     std::unordered_map<std::string, entt::entity> chunkKeyToChunkEntity;
     std::vector<entt::entity> chunks;
 
-//    std::vector<std::thread> chunkGenThreadPool;
-//    volatile std::vector<bool> chunkGenThreadsRunning;
-
     ThreadPool pool;
 
-    Shader voxelShader;
+    Shader voxelShader, voxelShaderTris;
 
     FastNoise mainNoise;
     FastNoise terraceOffset;
     FastNoise terraceSelect;
+    FastNoise smoothHillSelect;
+    FastNoise smoothHill;
+    FastNoise overallTerrainHeightOffset;
+    FastNoise caveNoiseA, caveNoiseB, caveNoiseC;
+    float smoothHillMagnitude;
 
     float fogDistance;
 
@@ -127,6 +130,10 @@ private:
                       std::vector<unsigned char>* dims, std::vector<unsigned char>* textures,
                       std::vector<unsigned char>* brightnesses, std::vector<unsigned char*>* neighborChunks);
 
+    void generateMeshTris(volatile Components::ChunkStatusEnum* chunkStatus,
+                          unsigned char* chunkData, std::vector<unsigned char>* tris,
+                          std::vector<unsigned char*>* neighborChunks);
+
     bool chunkHasAllNeighborData(entt::registry &registry, Components::ChunkPosition &chunkPosition);
 
     bool chunkHasData(entt::registry &registry, int xChunk, int yChunk, int zChunk);
@@ -136,6 +143,11 @@ private:
     // adds ChunkOpenGL and generates vbo & vao
     // also configures vao
     void genVboVaoAndBuffer(entt::registry& registry, entt::entity chunkEntity);
+    void genVboVaoAndBufferTris(entt::registry& registry, entt::entity chunkEntity);
+
+    void makeVertex(std::vector<unsigned char> &mesh, unsigned char x, unsigned char y, unsigned char z,
+                    unsigned char texture, unsigned char xTex, unsigned char yTex,
+                    unsigned char brightness, unsigned char normal);
 };
 
 

@@ -28,7 +28,9 @@ int main() {
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 //    glfwWindowHint(GLFW_SAMPLES, 32);
 
-    GLFWwindow* window = glfwCreateWindow(800, 600, "LearnOpenGL", NULL, NULL);
+    glfwGetMonitorWorkarea(glfwGetPrimaryMonitor(), NULL, NULL, &screenWidthGlobal, &screenHeightGlobal);
+
+    GLFWwindow* window = glfwCreateWindow(screenWidthGlobal, screenHeightGlobal, "Voxel Engine Test", glfwGetPrimaryMonitor(), NULL);
     if (window == NULL)
     {
         std::cout << "Failed to create GLFW window" << std::endl;
@@ -82,11 +84,11 @@ int main() {
 //    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 
     glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MIN_FILTER, GL_NEAREST_MIPMAP_LINEAR);
-//    glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
     glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
     glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MAX_LEVEL, 4);
     glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_S, GL_REPEAT);
     glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_T, GL_REPEAT);
+//    glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MAX_ANISOTROPY, 16);
 
     if (textures[0]) {
         glTexImage3D(GL_TEXTURE_2D_ARRAY, 0, GL_RGB, 16, 16, 4, 0, GL_RGB, GL_UNSIGNED_BYTE, textures[0]);
@@ -101,7 +103,8 @@ int main() {
 
 
 
-    World world("shaders/voxel/voxel_shader.vert", "shaders/voxel/voxel_shader.frag");
+    World world("shaders/voxel/voxel_shader.vert", "shaders/voxel/voxel_shader.frag",
+                "shaders/voxel_tris/voxel_shader.vert", "shaders/voxel_tris/voxel_shader.frag");
 
     // connect texture to shader program
     world.getShader().use();
@@ -119,7 +122,7 @@ int main() {
         world.updateScroll(xScrollGlobal, yScrollGlobal);
         double worldRunStartTime = glfwGetTime();
         world.run(dt, window);
-        std::cout << "World run time: " << worldRunStartTime - glfwGetTime() << std::endl;
+//        std::cout << "World run time: " << worldRunStartTime - glfwGetTime() << std::endl;
 
 
         glClearColor(world.getSkyColor().r, world.getSkyColor().g, world.getSkyColor().b, 1.0f);
@@ -127,7 +130,7 @@ int main() {
 
         double worldRenderStartTime = glfwGetTime();
         world.draw(window);
-        std::cout << "World render time: " << worldRenderStartTime - glfwGetTime() << std::endl;
+//        std::cout << "World render time: " << worldRenderStartTime - glfwGetTime() << std::endl;
 
         glfwSwapBuffers(window);
         glfwPollEvents();
@@ -152,6 +155,8 @@ void processInput(GLFWwindow* window)
 {
     if(glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
         glfwSetWindowShouldClose(window, true);
+//    if(glfwGetKey(window, GLFW_KEY_LEFT_SUPER))
+//        glfwSetWindowAttrib(window, GLFW_FOCUSED, false);
 }
 
 void mouse_callback(GLFWwindow* window, double xpos, double ypos) {

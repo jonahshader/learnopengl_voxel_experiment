@@ -5,7 +5,7 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 #set(CMAKE_CXX_FLAGS  "-std=c++2a -fopenmp -O3 -msse2 -msse4.1 -mavx2 -mavx512f -fno-asynchronous-unwind-tables")
-set(CMAKE_CXX_FLAGS  "-std=c++2a -fopenmp -O3 -lpthread")
+set(CMAKE_CXX_FLAGS  "-std=c++2a -fopenmp -O3 -static -static-libgcc -static-libstdc++")
 include_directories("G:/Programming/CLionProjects/learnopengl_voxel_experiment/src")
 
 include_directories("G:/Programming/C++ Libraries/single_header")

@@ -6,9 +6,10 @@
 
 #include <iostream>
 
-World::World(const char* vertexPath, const char* fragmentPath) :
+World::World(const char* vertexPathInst, const char* fragmentPathInst,
+             const char* vertexPathTri, const char* fragmentPathTri) :
 registry(),
-chunkManagement(vertexPath, fragmentPath),
+chunkManagement(vertexPathInst, fragmentPathInst, vertexPathTri, fragmentPathTri),
 pMouseX(0.0),
 pMouseY(0.0),
 screenWidth(800),
