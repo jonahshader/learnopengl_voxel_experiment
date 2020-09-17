@@ -15,9 +15,9 @@ void PlayerControl::updateMovement(entt::registry &registry, double dt, GLFWwind
     if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS) zMove--;
     if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS) zMove++;
 
-    if (glfwGetKey(window, GLFW_KEY_LEFT_CONTROL) == GLFW_PRESS) yMove--;
+    if (glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS) yMove--;
     if (glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS) yMove++;
-    if (glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS) multiplier = 15.0;
+    if (glfwGetKey(window, GLFW_KEY_LEFT_CONTROL) == GLFW_PRESS) multiplier = 15.0;
 
     auto view = registry.view<Components::Velocity, Components::DirectionPitchYaw, Components::PlayerControl>();
 
@@ -25,22 +25,52 @@ void PlayerControl::updateMovement(entt::registry &registry, double dt, GLFWwind
         auto [vel, dir] = registry.get<Components::Velocity, Components::DirectionPitchYaw>(entity);
 
         double speed = DEFAULT_MAX_SPEED;
+        double jumpSpeed = DEFAULT_MAX_SPEED;
         if (registry.has<Components::TravelMaxSpeed>(entity)) {
             speed = registry.get<Components::TravelMaxSpeed>(entity).maxSpeed;
+        }
+        if (registry.has<Components::JumpVelocity>(entity)) {
+            jumpSpeed = registry.get<Components::JumpVelocity>(entity).jumpUpVelocity;
         }
 
         speed *= multiplier;
 
-        if (xMove != 0.0 || zMove != 0.0) {
-            double localWalkYaw = atan2(-zMove, xMove);
-            double combinedMoveYaw = localWalkYaw + dir.yaw;
-            vel.vel.x = cos(combinedMoveYaw) * speed;
-            vel.vel.z = sin(combinedMoveYaw) * speed;
+        if (registry.has<Components::TargetVelocity>(entity)) {
+            auto &targetVel = registry.get<Components::TargetVelocity>(entity);
+
+            if (xMove != 0.0 || zMove != 0.0) {
+                double localWalkYaw = atan2(-zMove, xMove);
+                double combinedMoveYaw = localWalkYaw + dir.yaw;
+                targetVel.targetVel.x = cos(combinedMoveYaw) * speed;
+                targetVel.targetVel.z = sin(combinedMoveYaw) * speed;
+            } else {
+                targetVel.targetVel.x = 0;
+                targetVel.targetVel.z = 0;
+            }
+
+//            if (registry.has<Components::ChunkCollision>(entity)) {
+//                auto &chunkCollision = registry.get<Components::ChunkCollision>(entity);
+//                if (chunkCollision.grounded) {
+//                    targetVel.targetVel.y = std::max(yMove * speed, 0.0);
+//                }
+//            } else {
+//                targetVel.targetVel.y = std::max(yMove * speed, 0.0);
+//            }
+            targetVel.targetVel.y = std::max(yMove * jumpSpeed, 0.0);
+
         } else {
-            vel.vel.x = 0;
-            vel.vel.z = 0;
+
+            if (xMove != 0.0 || zMove != 0.0) {
+                double localWalkYaw = atan2(-zMove, xMove);
+                double combinedMoveYaw = localWalkYaw + dir.yaw;
+                vel.vel.x = cos(combinedMoveYaw) * speed;
+                vel.vel.z = sin(combinedMoveYaw) * speed;
+            } else {
+                vel.vel.x = 0;
+                vel.vel.z = 0;
+            }
+            vel.vel.y = yMove * jumpSpeed;
         }
-        vel.vel.y = yMove * speed;
     }
 
 }

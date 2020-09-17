@@ -21,6 +21,9 @@ int screenHeightGlobal;
 double xScrollGlobal;
 double yScrollGlobal;
 
+bool wireframeMode = false;
+bool wireframePressedLast = false;
+
 int main() {
     glfwInit();
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
@@ -30,7 +33,8 @@ int main() {
 
     glfwGetMonitorWorkarea(glfwGetPrimaryMonitor(), NULL, NULL, &screenWidthGlobal, &screenHeightGlobal);
 
-    GLFWwindow* window = glfwCreateWindow(screenWidthGlobal, screenHeightGlobal, "Voxel Engine Test", glfwGetPrimaryMonitor(), NULL);
+//    GLFWwindow* window = glfwCreateWindow(screenWidthGlobal, screenHeightGlobal, "Voxel Engine Test", glfwGetPrimaryMonitor(), NULL);
+    GLFWwindow* window = glfwCreateWindow(screenWidthGlobal/2, screenHeightGlobal/2, "Voxel Engine Test", NULL, NULL);
     if (window == NULL)
     {
         std::cout << "Failed to create GLFW window" << std::endl;
@@ -55,6 +59,7 @@ int main() {
 //    glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
 //    glEnable(GL_DEBUG_OUTPUT);
 //    glEnable(GL_MULTISAMPLE);
+    glfwSwapInterval(1);
 
 
     // set texture unit
@@ -85,7 +90,7 @@ int main() {
 
     glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MIN_FILTER, GL_NEAREST_MIPMAP_LINEAR);
     glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-    glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MAX_LEVEL, 4);
+    glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MAX_LEVEL, 5);
     glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_S, GL_REPEAT);
     glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_T, GL_REPEAT);
 //    glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MAX_ANISOTROPY, 16);
@@ -109,8 +114,7 @@ int main() {
     // connect texture to shader program
     world.getShader().use();
     world.getShader().setInt("sampler", 0);
-//    glSampler
-    // render global config
+
     // render loop
     double pTime = glfwGetTime();
     double dt = 1/165.0;
@@ -138,6 +142,7 @@ int main() {
         dt = time - pTime;
         pTime = time;
         glfwSetWindowTitle(window, ("FPS: " + std::to_string(1/dt)).c_str());
+//        std::cout << ("FPS: " + std::to_string(1/dt)).c_str() << std::endl;
     }
 
     glfwTerminate();
@@ -155,6 +160,20 @@ void processInput(GLFWwindow* window)
 {
     if(glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
         glfwSetWindowShouldClose(window, true);
+
+    if (glfwGetKey(window, GLFW_KEY_F1) == GLFW_PRESS) {
+        if (!wireframePressedLast) {
+            wireframePressedLast = true;
+            wireframeMode = !wireframeMode;
+            if (wireframeMode) {
+                glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+            } else {
+                glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+            }
+        }
+    } else {
+        wireframePressedLast = false;
+    }
 //    if(glfwGetKey(window, GLFW_KEY_LEFT_SUPER))
 //        glfwSetWindowAttrib(window, GLFW_FOCUSED, false);
 }

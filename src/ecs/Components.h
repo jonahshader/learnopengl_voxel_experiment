@@ -87,6 +87,16 @@ public:
         std::vector<entt::entity> entities;
     };
 
+    struct ChunkCollision{
+        bool grounded;
+    };
+
+    struct CylinderCollider{
+        double height;
+        double radius;
+        glm::dvec3 lastValidPos;
+    };
+
     struct Position {
         glm::dvec3 pos;
     };
@@ -108,10 +118,23 @@ public:
 
     struct CameraAttach {
         double fov;
+        glm::dvec3 posOffset;
     };
 
     struct TravelMaxSpeed {
         double maxSpeed;
+    };
+
+    struct JumpVelocity {
+        double jumpUpVelocity;
+    };
+
+    struct TargetVelocity {
+        glm::dvec3 targetVel;
+    };
+
+    struct Gravity {
+        double gravity;
     };
 
     static std::string dvecToString(glm::dvec3 &vec);

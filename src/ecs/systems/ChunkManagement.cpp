@@ -16,12 +16,14 @@
 #include <chrono>
 #include <iostream>
 #include <future>
+#include <random>
 
 entt::registry* ChunkManagement::chunkCompareRegistry = nullptr;
 Components::Position ChunkManagement::chunkComparePos = {glm::dvec3(0.0)};
 
 ChunkManagement::ChunkManagement(const char* vertexPathInstVer, const char* fragmentPathInstVer,
-                                 const char* vertexPathTriVer, const char* fragmentPathTriVer) :
+                                 const char* vertexPathTriVer, const char* fragmentPathTriVer,
+                                 int seed) :
         chunkKeyToChunkEntity(),
         chunks(),
         pool(MAX_CONCURRENT_GENERATES + 1 + MAX_CONCURRENT_MESH_GENS),
@@ -43,48 +45,53 @@ ChunkManagement::ChunkManagement(const char* vertexPathInstVer, const char* frag
         chunksCurrentlyMeshing(0),
         cubeVbo(0)
 {
+    std::random_device rd;
+    std::mt19937 mt(rd());
+    std::uniform_int_distribution intDist;
+    mt.seed(seed);
+
     mainNoise.SetNoiseType(FastNoise::SimplexFractal);
     mainNoise.SetFrequency(0.0020);
     mainNoise.SetFractalOctaves(7);
-    mainNoise.SetSeed(1505);
+    mainNoise.SetSeed(intDist(mt));
 
     terraceOffset.SetNoiseType(FastNoise::SimplexFractal);
     terraceOffset.SetFrequency(0.006);
     terraceOffset.SetFractalOctaves(3);
-    terraceOffset.SetSeed(9853);
+    terraceOffset.SetSeed(intDist(mt));
 
     terraceSelect.SetNoiseType(FastNoise::SimplexFractal);
     terraceSelect.SetFrequency(0.002);
     terraceSelect.SetFractalOctaves(2);
-    terraceSelect.SetSeed(51239);
+    terraceSelect.SetSeed(intDist(mt));
 
     smoothHillSelect.SetNoiseType(FastNoise::SimplexFractal);
     smoothHillSelect.SetFrequency(0.001);
     smoothHillSelect.SetFractalOctaves(3);
-    smoothHillSelect.SetSeed(549);
+    smoothHillSelect.SetSeed(intDist(mt));
 
     smoothHill.SetNoiseType(FastNoise::SimplexFractal);
     smoothHill.SetFrequency(0.0010);
     smoothHill.SetFractalOctaves(5);
-    smoothHill.SetSeed(5549);
+    smoothHill.SetSeed(intDist(mt));
 
     overallTerrainHeightOffset.SetNoiseType(FastNoise::SimplexFractal);
     overallTerrainHeightOffset.SetFrequency(0.00005);
     overallTerrainHeightOffset.SetFractalOctaves(2);
-    overallTerrainHeightOffset.SetSeed(83413);
+    overallTerrainHeightOffset.SetSeed(intDist(mt));
 
     caveNoiseA.SetNoiseType(FastNoise::SimplexFractal);
     caveNoiseA.SetFrequency(0.005);
     caveNoiseA.SetFractalOctaves(3);
-    caveNoiseA.SetSeed(432263);
+    caveNoiseA.SetSeed(intDist(mt));
 
     caveNoiseB.SetNoiseType(FastNoise::SimplexFractal);
     caveNoiseB.SetFrequency(0.005);
     caveNoiseB.SetFractalOctaves(3);
-    caveNoiseB.SetSeed(852651);
+    caveNoiseB.SetSeed(intDist(mt));
 
     caveNoiseC.SetNoiseType(FastNoise::Cellular);
-    caveNoiseC.SetSeed(523647);
+    caveNoiseC.SetSeed(intDist(mt));
     caveNoiseC.SetFrequency(0.02);
     caveNoiseC.SetCellularReturnType(FastNoise::Distance2Div);
     caveNoiseC.SetCellularDistanceFunction(FastNoise::Euclidean);
@@ -113,6 +120,58 @@ entt::entity* ChunkManagement::getChunk(int xChunk, int yChunk, int zChunk) {
     } else {
         return &found->second;
     }
+}
+
+bool ChunkManagement::isChunkDataLoaded(entt::registry &registry, int xChunk, int yChunk, int zChunk) {
+    auto key = chunkPositionToKey(xChunk, yChunk, zChunk);
+    auto found = chunkKeyToChunkEntity.find(key);
+    if (found == chunkKeyToChunkEntity.end()) {
+        return false;
+    } else {
+        if (registry.has<Components::ChunkStatus>(found->second)) {
+            auto &status = registry.get<Components::ChunkStatus>(found->second);
+            if (*status.status != Components::ChunkStatusEnum::NEW &&
+                    *status.status != Components::ChunkStatusEnum::GENERATING_OR_LOADING) {
+                return true;
+            } else {
+                return false;
+            }
+        } else {
+            return false;
+        }
+    }
+}
+
+bool ChunkManagement::getVoxel(entt::registry &registry, int x, int y, int z, unsigned char &voxel) {
+    int xChunk = x >= 0 ? x / CHUNK_SIZE : ((x+1) / CHUNK_SIZE) - 1;
+    int yChunk = y >= 0 ? y / CHUNK_SIZE : ((y+1) / CHUNK_SIZE) - 1;
+    int zChunk = z >= 0 ? z / CHUNK_SIZE : ((z+1) / CHUNK_SIZE) - 1;
+
+    int xLocal = x - xChunk * CHUNK_SIZE;
+    int yLocal = y - yChunk * CHUNK_SIZE;
+    int zLocal = z - zChunk * CHUNK_SIZE;
+
+    if (chunkHasData(registry, xChunk, yChunk, zChunk)) {
+        voxel = Components::chunkDataGet(getChunkData(registry, xChunk, yChunk, zChunk).data.data(), xLocal, yLocal, zLocal);
+        return true;
+    } else {
+        return false;
+    }
+}
+
+bool ChunkManagement::inSolidBlock(entt::registry &registry, glm::dvec3 &pos) {
+    int xChunk = floor(pos.x / CHUNK_SIZE);
+    int yChunk = floor(pos.y / CHUNK_SIZE);
+    int zChunk = floor(pos.z / CHUNK_SIZE);
+
+    int xLocal = floor(pos.x) - xChunk * CHUNK_SIZE;
+    int yLocal = floor(pos.y) - yChunk * CHUNK_SIZE;
+    int zLocal = floor(pos.z) - zChunk * CHUNK_SIZE;
+    if (chunkHasData(registry, xChunk, yChunk, zChunk)) {
+        if (Components::chunkDataGet(getChunkData(registry, xChunk, yChunk, zChunk).data.data(), xLocal, yLocal, zLocal) != 0)
+            return true;
+        else return false;
+    } else return false;
 }
 
 Components::ChunkData& ChunkManagement::getChunkData(entt::registry &registry, int xChunk, int yChunk, int zChunk) {
@@ -269,10 +328,11 @@ void ChunkManagement::run(entt::registry &registry) {
 
                                 std::vector<unsigned char*>* neighborChunks = new std::vector<unsigned char*>(27);
                                 for (int z = 0; z < 3; ++z) for (int y = 0; y < 3; ++y) for (int x = 0; x < 3; ++x) {
-                                            (*neighborChunks)[x + y * 3 + z * 9] = getChunkData(registry, chunkPosition.x + x - 1, chunkPosition.y + y - 1, chunkPosition.z + z - 1).data.data();
-                                        }
+                                        (*neighborChunks)[x + y * 3 + z * 9] = getChunkData(registry, chunkPosition.x + x - 1, chunkPosition.y + y - 1, chunkPosition.z + z - 1).data.data();
+                                    }
                                 chunksCurrentlyMeshing++;
                                 pool.enqueue(&ChunkManagement::generateMeshTris, this, chunkStatus.status, chunkData.data.data(), chunkMeshDataTris.tris, neighborChunks);
+//                                pool.enqueue(&ChunkManagement::generateMeshGreedy, this, chunkStatus.status, chunkData.data.data(), chunkMeshDataTris.tris, neighborChunks);
 #endif//TRI_MODE
                             }
                         }
@@ -368,6 +428,14 @@ void ChunkManagement::tryRemoveChunk(entt::registry &registry, entt::entity chun
         if (chunkMeshData.brightnesses != nullptr) {
             delete chunkMeshData.brightnesses;
             chunkMeshData.brightnesses = nullptr;
+        }
+    }
+
+    if (registry.has<Components::ChunkMeshDataTris>(chunkEntity)) {
+        auto &chunkMeshDataTris = registry.get<Components::ChunkMeshDataTris>(chunkEntity);
+        if (chunkMeshDataTris.tris != nullptr) {
+            delete chunkMeshDataTris.tris;
+            chunkMeshDataTris.tris = nullptr;
         }
     }
 
@@ -490,42 +558,8 @@ void ChunkManagement::generateMesh(volatile Components::ChunkStatusEnum* chunkSt
     bool meshed[VOXELS_PER_CHUNK] = {false};
     unsigned char bVals[VOXELS_PER_CHUNK] = {0};
 
-
-//#pragma omp parallel for
-    for (int z = 0; z < CHUNK_SIZE; z++) for (int y = 0; y < CHUNK_SIZE - 1; y++) for (int x = 0; x < CHUNK_SIZE; x++) {
-        auto mat = Components::chunkDataGet(chunkData, x, (y + 1), z);
-        if (mat == 1 || mat == 2) {
-            (chunkData)[x + y * CHUNK_SIZE + z * CHUNK_SIZE * CHUNK_SIZE] = 2;
-        }
-    }
-//#pragma omp parallel for
-    for (int z = 0; z < CHUNK_SIZE; z++) for (int x = 0; x < CHUNK_SIZE; x++) {
-        int y = CHUNK_SIZE - 1;
-        auto mat = Components::chunkDataGet(neighborChunks, x, (y + 1), z);
-        if (mat == 1 || mat == 2) {
-            (chunkData)[x + y * CHUNK_SIZE + z * CHUNK_SIZE * CHUNK_SIZE] = 2;
-        }
-    }
-
-    const int aoWidth = 1;
-    const int aoHeight = 15;
-//#pragma omp parallel for
-    for (int z = 0; z < CHUNK_SIZE; ++z) {
-        for(int y = 0; y < CHUNK_SIZE; ++y) {
-            for (int x = 0; x < CHUNK_SIZE; ++x) {
-                if (x >= aoWidth && x < CHUNK_SIZE - aoWidth && z >= aoWidth && z < CHUNK_SIZE - aoWidth && y < CHUNK_SIZE - aoHeight) {
-                    for (int lz = -aoWidth; lz <= aoWidth; ++lz) for (int ly = 1; ly <= aoHeight; ++ly) for (int lx = -aoWidth; lx <= aoWidth; ++lx)  {
-                        bVals[x + y * CHUNK_SIZE + z * CHUNK_SIZE * CHUNK_SIZE] += Components::chunkDataGet(chunkData, x + lx, y + ly, z + lz) == 0 ? 1 : 0;
-                    }
-                } else {
-                    for (int lz = -aoWidth; lz <= aoWidth; ++lz) for (int ly = 1; ly <= aoHeight; ++ly) for (int lx = -aoWidth; lx <= aoWidth; ++lx)  {
-                        bVals[x + y * CHUNK_SIZE + z * CHUNK_SIZE * CHUNK_SIZE] += Components::chunkDataGet(neighborChunks, x + lx, y + ly, z + lz) == 0 ? 1 : 0;
-                    }
-                }
-//                bVals[x + y * CHUNK_SIZE + z * CHUNK_SIZE * CHUNK_SIZE] *= 0.25f;
-            }
-        }
-    }
+    fixGrass(chunkData, neighborChunks);
+    calculateBrightness(bVals, chunkData, neighborChunks);
 
     for (int z = 0; z < CHUNK_SIZE; ++z) {
         for (int y = 0; y < CHUNK_SIZE; ++y) {
@@ -765,13 +799,26 @@ void ChunkManagement::render(entt::registry &registry, int screenWidth, int scre
 //        glm::mat4 view = glm::translate(glm::mat4(1.0f), glm::vec3((float) -(playerPos.pos.x - playerChunkPos.x * CHUNK_SIZE), (float) -(playerPos.pos.y - playerChunkPos.y * CHUNK_SIZE), (float) -(playerPos.pos.z - playerChunkPos.z * CHUNK_SIZE)));
         glm::mat4 view = glm::rotate(projection, (float) playerDir.pitch, glm::vec3(-1.0f, 0.0f, 0.0f));
         view = glm::rotate(view, (float) playerDir.yaw, glm::vec3(0.0f, 1.0f, 0.0f));
-        view = glm::translate(view, glm::vec3((float) -(playerPos.pos.x - playerChunkPos.x * CHUNK_SIZE), (float) -(playerPos.pos.y - playerChunkPos.y * CHUNK_SIZE), (float) -(playerPos.pos.z - playerChunkPos.z * CHUNK_SIZE)));
+        view = glm::translate(view, glm::vec3((float) -(playerPos.pos.x + playerCam.posOffset.x - playerChunkPos.x * CHUNK_SIZE),
+                                              (float) -(playerPos.pos.y + playerCam.posOffset.y - playerChunkPos.y * CHUNK_SIZE),
+                                              (float) -(playerPos.pos.z + playerCam.posOffset.z - playerChunkPos.z * CHUNK_SIZE)));
 
         // move the frustum back a little
-        glm::mat4 frustum = glm::translate(projection, glm::vec3(0, 0, -CHUNK_SIZE));
-        frustum = glm::rotate(frustum, (float) playerDir.pitch, glm::vec3(-1.0f, 0.0f, 0.0f));
-        frustum = glm::rotate(frustum, (float) playerDir.yaw, glm::vec3(0.0f, 1.0f, 0.0f));
-        frustum = glm::translate(frustum, glm::vec3((float) -(playerPos.pos.x - playerChunkPos.x * CHUNK_SIZE), (float) -(playerPos.pos.y - playerChunkPos.y * CHUNK_SIZE), (float) -(playerPos.pos.z - playerChunkPos.z * CHUNK_SIZE)));
+        glm::mat4 frustumForZCut = glm::translate(projection, glm::vec3(0, 0, -CHUNK_SIZE));
+        glm::mat4 frustumForXYCut = glm::translate(projection, glm::vec3(0, 0, -CHUNK_SIZE * 1.5f));
+
+        frustumForZCut = glm::rotate(frustumForZCut, (float) playerDir.pitch, glm::vec3(-1.0f, 0.0f, 0.0f));
+        frustumForXYCut = glm::rotate(frustumForXYCut, (float) playerDir.pitch, glm::vec3(-1.0f, 0.0f, 0.0f));
+
+        frustumForZCut = glm::rotate(frustumForZCut, (float) playerDir.yaw, glm::vec3(0.0f, 1.0f, 0.0f));
+        frustumForXYCut = glm::rotate(frustumForXYCut, (float) playerDir.yaw, glm::vec3(0.0f, 1.0f, 0.0f));
+
+        frustumForZCut = glm::translate(frustumForZCut, glm::vec3((float) -(playerPos.pos.x + playerCam.posOffset.x - playerChunkPos.x * CHUNK_SIZE),
+                                                                  (float) -(playerPos.pos.y + playerCam.posOffset.y - playerChunkPos.y * CHUNK_SIZE),
+                                                                  (float) -(playerPos.pos.z + playerCam.posOffset.z - playerChunkPos.z * CHUNK_SIZE)));
+        frustumForXYCut = glm::translate(frustumForXYCut, glm::vec3((float) -(playerPos.pos.x + playerCam.posOffset.x - playerChunkPos.x * CHUNK_SIZE),
+                                                                    (float) -(playerPos.pos.y + playerCam.posOffset.y - playerChunkPos.y * CHUNK_SIZE),
+                                                                    (float) -(playerPos.pos.z + playerCam.posOffset.z - playerChunkPos.z * CHUNK_SIZE)));
 
 #ifdef INST_MODE
         voxelShader.use();
@@ -779,7 +826,10 @@ void ChunkManagement::render(entt::registry &registry, int screenWidth, int scre
         voxelShader.setVec3("skyColor", skyColor.r, skyColor.g, skyColor.b);
         voxelShader.setUInt("chunkSize", CHUNK_SIZE);
         voxelShader.setMatrix4("viewProjection", view);
-        voxelShader.setVec3("camPos", playerPos.pos.x - playerChunkPos.x * CHUNK_SIZE, playerPos.pos.y - playerChunkPos.y * CHUNK_SIZE, playerPos.pos.z - playerChunkPos.z * CHUNK_SIZE);
+        voxelShader.setVec3("camPos",
+                                playerPos.pos.x + playerCam.posOffset.x - playerChunkPos.x * CHUNK_SIZE,
+                                playerPos.pos.y + playerCam.posOffset.y - playerChunkPos.y * CHUNK_SIZE,
+                                playerPos.pos.z + playerCam.posOffset.z - playerChunkPos.z * CHUNK_SIZE);
 
         auto renderableChunks = registry.view<Components::ChunkPosition, Components::ChunkOpenGLInstanceVer>();
 
@@ -808,7 +858,10 @@ void ChunkManagement::render(entt::registry &registry, int screenWidth, int scre
         voxelShaderTris.setVec3("skyColor", skyColor.r, skyColor.g, skyColor.b);
         voxelShaderTris.setUInt("chunkSize", CHUNK_SIZE);
         voxelShaderTris.setMatrix4("viewProjection", view);
-        voxelShaderTris.setVec3("camPos", playerPos.pos.x - playerChunkPos.x * CHUNK_SIZE, playerPos.pos.y - playerChunkPos.y * CHUNK_SIZE, playerPos.pos.z - playerChunkPos.z * CHUNK_SIZE);
+        voxelShaderTris.setVec3("camPos",
+                                playerPos.pos.x + playerCam.posOffset.x - playerChunkPos.x * CHUNK_SIZE,
+                                playerPos.pos.y + playerCam.posOffset.y - playerChunkPos.y * CHUNK_SIZE,
+                                playerPos.pos.z + playerCam.posOffset.z - playerChunkPos.z * CHUNK_SIZE);
 
         auto renderableChunksTris = registry.view<Components::ChunkPosition, Components::ChunkOpenGLTriVer>();
 
@@ -818,9 +871,12 @@ void ChunkManagement::render(entt::registry &registry, int screenWidth, int scre
 
             if (chunkGL.numTriangles > 0) {
                 glm::vec4 chunkPoint((chunkPos.x - playerChunkPos.x) * CHUNK_SIZE + CHUNK_SIZE / 2, (chunkPos.y - playerChunkPos.y) * CHUNK_SIZE + CHUNK_SIZE / 2, (chunkPos.z - playerChunkPos.z) * CHUNK_SIZE + CHUNK_SIZE / 2, 1);
-                chunkPoint = frustum * chunkPoint;
+                glm::vec4 chunkPointXYCut = chunkPoint;
+                chunkPoint = frustumForZCut * chunkPoint;
                 chunkPoint = chunkPoint / chunkPoint.w;
-                if (chunkPoint.z > 0 && chunkPoint.x > -1 && chunkPoint.x < 1 && chunkPoint.y > -1 && chunkPoint.y < 1) {
+                chunkPointXYCut = frustumForXYCut * chunkPointXYCut;
+                chunkPointXYCut = chunkPointXYCut / chunkPointXYCut.w;
+                if (chunkPoint.z > 0 && chunkPointXYCut.x > -1 && chunkPointXYCut.x < 1 && chunkPointXYCut.y > -1 && chunkPointXYCut.y < 1) {
 //                    std::cout << chunkPoint.x << " " << chunkPoint.y << " " << chunkPoint.z << " " << chunkPoint.w << std::endl;
                     voxelShader.setVec3i("chunkPos", chunkPos.x - playerChunkPos.x, chunkPos.y - playerChunkPos.y, chunkPos.z - playerChunkPos.z);
                     glBindVertexArray(chunkGL.vao);
@@ -915,15 +971,8 @@ void ChunkManagement::genVboVaoAndBufferTris(entt::registry &registry, entt::ent
     registry.remove<Components::ChunkMeshDataTris>(chunkEntity);
 }
 
-void ChunkManagement::generateMeshTris(volatile Components::ChunkStatusEnum* chunkStatus,
-                                   unsigned char* chunkData, std::vector<unsigned char>* tris,
-                                   std::vector<unsigned char*>* neighborChunks) {
-
-    bool meshed[VOXELS_PER_CHUNK] = {false};
-    unsigned char bVals[VOXELS_PER_CHUNK] = {0};
-
-
-//#pragma omp parallel for
+void ChunkManagement::fixGrass(unsigned char *chunkData, std::vector<unsigned char*>* neighborChunks) {
+    //#pragma omp parallel for
     for (int z = 0; z < CHUNK_SIZE; z++) for (int y = 0; y < CHUNK_SIZE - 1; y++) for (int x = 0; x < CHUNK_SIZE; x++) {
                 auto mat = Components::chunkDataGet(chunkData, x, (y + 1), z);
                 if (mat == 1 || mat == 2) {
@@ -938,7 +987,10 @@ void ChunkManagement::generateMeshTris(volatile Components::ChunkStatusEnum* chu
                 (chunkData)[x + y * CHUNK_SIZE + z * CHUNK_SIZE * CHUNK_SIZE] = 2;
             }
         }
+}
 
+void ChunkManagement::calculateBrightness(unsigned char *bVals, unsigned char *chunkData,
+                                          std::vector<unsigned char *> *neighborChunks) {
     const int aoWidth = 1;
     const int aoHeight = 15;
 //#pragma omp parallel for
@@ -958,6 +1010,17 @@ void ChunkManagement::generateMeshTris(volatile Components::ChunkStatusEnum* chu
             }
         }
     }
+}
+
+void ChunkManagement::generateMeshTris(volatile Components::ChunkStatusEnum* chunkStatus,
+                                   unsigned char* chunkData, std::vector<unsigned char>* tris,
+                                   std::vector<unsigned char*>* neighborChunks) {
+
+    bool meshed[VOXELS_PER_CHUNK] = {false};
+    unsigned char bVals[VOXELS_PER_CHUNK] = {0};
+
+    fixGrass(chunkData, neighborChunks);
+    calculateBrightness(bVals, chunkData, neighborChunks);
 
     for (int z = 0; z < CHUNK_SIZE; ++z) {
         for (int y = 0; y < CHUNK_SIZE; ++y) {
@@ -965,7 +1028,7 @@ void ChunkManagement::generateMeshTris(volatile Components::ChunkStatusEnum* chu
                 if (!meshed[x + y * CHUNK_SIZE + z * CHUNK_SIZE * CHUNK_SIZE]) {
                     auto material = Components::chunkDataGet(chunkData, x, y, z);
                     auto brightness = bVals[x + y * CHUNK_SIZE + z * CHUNK_SIZE * CHUNK_SIZE];
-                    bool canUseCheaperVoxelFun = (x > 0 && x < CHUNK_SIZE - 1 && y > 0 && y < CHUNK_SIZE - 1 && z > 0 && z < CHUNK_SIZE - 1);
+//                    bool canUseCheaperVoxelFun = (x > 0 && x < CHUNK_SIZE - 1 && y > 0 && y < CHUNK_SIZE - 1 && z > 0 && z < CHUNK_SIZE - 1);
 
                     if (material != 0 && Components::voxelIsTouchingAirWithNeighbors(neighborChunks, x, y, z)) {
                         int xSize = 0;
@@ -1057,11 +1120,6 @@ void ChunkManagement::generateMeshTris(volatile Components::ChunkStatusEnum* chu
                         }
                         topFaceBreak:
                         if (visible) {
-                            // make top mesh
-//                            makeVertex(*tris, x, y + ySize, z, topTexture, 0, 0, brightness, 4);
-//                            makeVertex(*tris, x, y + ySize, z + zSize, topTexture, 0, zSize, brightness, 4);
-//                            makeVertex(*tris, x + xSize, y + ySize, z, topTexture, xSize, 0, brightness, 4);
-//
                             // front tri
                             makeVertex(*tris, x, y + ySize, z + zSize, topTexture, 0, zSize, brightness, 4);
                             makeVertex(*tris, x + xSize, y + ySize, z + zSize, topTexture, xSize, zSize, brightness, 4);
@@ -1205,4 +1263,193 @@ void ChunkManagement::makeVertex(std::vector<unsigned char> &mesh, unsigned char
     mesh.emplace_back(yTex);
     mesh.emplace_back(brightness);
     mesh.emplace_back(normal);
+}
+
+
+void ChunkManagement::generateMeshGreedy(volatile Components::ChunkStatusEnum* chunkStatus,
+                                              unsigned char* chunkData, std::vector<unsigned char>* tris,
+                                              std::vector<unsigned char*>* neighborChunks) {
+
+    bool meshed[CHUNK_SIZE * CHUNK_SIZE] = {false};
+    unsigned char bVals[VOXELS_PER_CHUNK] = {0};
+
+    fixGrass(chunkData, neighborChunks);
+    calculateBrightness(bVals, chunkData, neighborChunks);
+
+    int z = 8;
+    for (int y = 0; y < CHUNK_SIZE; ++y) {
+        for (int x = 0; x < CHUNK_SIZE; ++x) {
+            if (!meshed[x + y * CHUNK_SIZE]) {
+                auto material = Components::chunkDataGet(chunkData, x, y, z);
+                auto brightness = bVals[x + y * CHUNK_SIZE + z * CHUNK_SIZE * CHUNK_SIZE];
+
+                if (material != 0 && Components::chunkDataGet(chunkData, x, y, z + 1) == 0) {
+                    int xSize = 0;
+                    int ySize = 0;
+
+                    int xCurrent = x;
+
+                    for (; xCurrent < CHUNK_SIZE && !meshed[xCurrent + y * CHUNK_SIZE] &&
+                           Components::chunkDataGet(chunkData, xCurrent, y, z) == material &&
+                           bVals[xCurrent + y * CHUNK_SIZE + z * CHUNK_SIZE * CHUNK_SIZE] == brightness &&
+                           Components::chunkDataGet(chunkData, xCurrent, y, z + 1) == 0; ++xCurrent, ++xSize) {}
+                    for (int yl = y + 1; yl < CHUNK_SIZE; ++yl) {
+                        for (int xl = x; xl < x + xSize; ++xl) {
+                            if (!meshed[xl + yl * CHUNK_SIZE] &&
+                            Components::chunkDataGet(chunkData, xl, yl, z) == material &&
+                            bVals[xl + yl * CHUNK_SIZE + z * CHUNK_SIZE * CHUNK_SIZE] == brightness &&
+                            Components::chunkDataGet(chunkData, xl, yl, z + 1) == 0) {
+                            } else {
+                                goto exitLoops;
+                            }
+                        }
+                        ++ySize;
+                    }
+                    exitLoops:
+
+                    for (int yl = y; yl < y + ySize; ++yl) {
+                        for (int xl = x; xl < x + xSize; ++xl) {
+                            meshed[xl + yl * CHUNK_SIZE] = true;
+                        }
+                    }
+
+                    // determine textures for faces
+                    unsigned char topTexture = 0;
+                    unsigned char sideTexture = 0;
+                    unsigned char bottomTexture = 0;
+
+                    switch (material) {
+                        case 1:
+                            topTexture = 0;
+                            sideTexture = 1;
+                            bottomTexture = 2;
+                            break;
+                        case 2:
+                            topTexture = 2;
+                            sideTexture = 2;
+                            bottomTexture = 2;
+                            break;
+                        case 3:
+                            topTexture = 3;
+                            sideTexture = 3;
+                            bottomTexture = 3;
+                            break;
+                        default:
+                            break;
+                    }
+                    // make back face
+                    makeVertex(*tris, x + xSize, y + ySize, z, sideTexture, xSize, 0, brightness, 0);
+                    makeVertex(*tris, x + xSize, y, z, sideTexture, xSize, ySize, brightness, 0);
+                    makeVertex(*tris, x, y, z, sideTexture, 0, ySize, brightness, 0);
+
+                    makeVertex(*tris, x, y + ySize, z, sideTexture, 0, 0, brightness, 0);
+                    makeVertex(*tris, x + xSize, y + ySize, z, sideTexture, xSize, 0, brightness, 0);
+                    makeVertex(*tris, x, y, z, sideTexture, 0, ySize, brightness, 0);
+                }
+            }
+        }
+    }
+
+    // after generating, change state
+    *chunkStatus = Components::ChunkStatusEnum::MESH_GENERATED;
+//    std::cout << "Done generating mesh" << std::endl;
+    // also, i dont need that neighborChunks vector anymore. dont wanna leak memory :>
+    neighborChunks->clear();
+    delete neighborChunks;
+    neighborChunks = nullptr;
+    chunksCurrentlyMeshing--;
+}
+
+void ChunkManagement::generateMeshDumb(volatile Components::ChunkStatusEnum* chunkStatus,
+                                         unsigned char* chunkData, std::vector<unsigned char>* tris,
+                                         std::vector<unsigned char*>* neighborChunks) {
+
+    bool meshed[CHUNK_SIZE * CHUNK_SIZE] = {false};
+    unsigned char bVals[VOXELS_PER_CHUNK] = {0};
+
+    fixGrass(chunkData, neighborChunks);
+    calculateBrightness(bVals, chunkData, neighborChunks);
+
+    int z = 8;
+    for (int y = 0; y < CHUNK_SIZE; ++y) {
+        for (int x = 0; x < CHUNK_SIZE; ++x) {
+            if (!meshed[x + y * CHUNK_SIZE]) {
+                auto material = Components::chunkDataGet(chunkData, x, y, z);
+                auto brightness = bVals[x + y * CHUNK_SIZE + z * CHUNK_SIZE * CHUNK_SIZE];
+
+                if (material != 0 && Components::chunkDataGet(chunkData, x, y, z + 1) == 0) {
+                    int xSize = 0;
+                    int ySize = 0;
+
+                    int xCurrent = x;
+
+                    for (; xCurrent < CHUNK_SIZE && !meshed[xCurrent + y * CHUNK_SIZE] &&
+                           Components::chunkDataGet(chunkData, xCurrent, y, z) == material &&
+                           bVals[xCurrent + y * CHUNK_SIZE + z * CHUNK_SIZE * CHUNK_SIZE] == brightness &&
+                           Components::chunkDataGet(chunkData, xCurrent, y, z + 1) == 0; ++xCurrent, ++xSize) {}
+                    for (int yl = y + 1; yl < CHUNK_SIZE; ++yl) {
+                        for (int xl = x; xl < x + xSize; ++xl) {
+                            if (!meshed[xl + yl * CHUNK_SIZE] &&
+                                Components::chunkDataGet(chunkData, xl, yl, z) == material &&
+                                bVals[xl + yl * CHUNK_SIZE + z * CHUNK_SIZE * CHUNK_SIZE] == brightness &&
+                                Components::chunkDataGet(chunkData, xl, yl, z + 1) == 0) {
+                            } else {
+                                goto exitLoops;
+                            }
+                        }
+                        ++ySize;
+                    }
+                    exitLoops:
+
+                    for (int yl = y; yl < y + ySize; ++yl) {
+                        for (int xl = x; xl < x + xSize; ++xl) {
+                            meshed[xl + yl * CHUNK_SIZE] = true;
+                        }
+                    }
+
+                    // determine textures for faces
+                    unsigned char topTexture = 0;
+                    unsigned char sideTexture = 0;
+                    unsigned char bottomTexture = 0;
+
+                    switch (material) {
+                        case 1:
+                            topTexture = 0;
+                            sideTexture = 1;
+                            bottomTexture = 2;
+                            break;
+                        case 2:
+                            topTexture = 2;
+                            sideTexture = 2;
+                            bottomTexture = 2;
+                            break;
+                        case 3:
+                            topTexture = 3;
+                            sideTexture = 3;
+                            bottomTexture = 3;
+                            break;
+                        default:
+                            break;
+                    }
+                    // make back face
+                    makeVertex(*tris, x + xSize, y + ySize, z, sideTexture, xSize, 0, brightness, 0);
+                    makeVertex(*tris, x + xSize, y, z, sideTexture, xSize, ySize, brightness, 0);
+                    makeVertex(*tris, x, y, z, sideTexture, 0, ySize, brightness, 0);
+
+                    makeVertex(*tris, x, y + ySize, z, sideTexture, 0, 0, brightness, 0);
+                    makeVertex(*tris, x + xSize, y + ySize, z, sideTexture, xSize, 0, brightness, 0);
+                    makeVertex(*tris, x, y, z, sideTexture, 0, ySize, brightness, 0);
+                }
+            }
+        }
+    }
+
+    // after generating, change state
+    *chunkStatus = Components::ChunkStatusEnum::MESH_GENERATED;
+//    std::cout << "Done generating mesh" << std::endl;
+    // also, i dont need that neighborChunks vector anymore. dont wanna leak memory :>
+    neighborChunks->clear();
+    delete neighborChunks;
+    neighborChunks = nullptr;
+    chunksCurrentlyMeshing--;
 }

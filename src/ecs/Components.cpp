@@ -12,9 +12,9 @@ unsigned char Components::chunkDataGet(std::vector<unsigned char*>* chunks, int 
 //    int cx = std::floor(x / (float) CHUNK_SIZE);
 //    int cy = std::floor(y / (float) CHUNK_SIZE);
 //    int cz = std::floor(z / (float) CHUNK_SIZE);
-    int cx = x >= 0 ? x / CHUNK_SIZE : (x / CHUNK_SIZE) - 1;
-    int cy = y >= 0 ? y / CHUNK_SIZE : (y / CHUNK_SIZE) - 1;
-    int cz = z >= 0 ? z / CHUNK_SIZE : (z / CHUNK_SIZE) - 1;
+    int cx = x >= 0 ? x / CHUNK_SIZE : ((x+1) / CHUNK_SIZE) - 1;
+    int cy = y >= 0 ? y / CHUNK_SIZE : ((y+1) / CHUNK_SIZE) - 1;
+    int cz = z >= 0 ? z / CHUNK_SIZE : ((z+1) / CHUNK_SIZE) - 1;
 
     int i = (cx + 1) + (cy + 1) * 3 + (cz + 1) * 9;
     int xx = x - cx * CHUNK_SIZE;

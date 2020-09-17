@@ -35,6 +35,7 @@ private:
     ChunkManagement chunkManagement;
 
     double pMouseX, pMouseY;
+    bool firstMouse;
     int screenWidth, screenHeight;
     glm::vec3 skyColor;
 

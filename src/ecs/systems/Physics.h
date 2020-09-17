@@ -7,15 +7,17 @@
 
 #include <entt/entt.hpp>
 #include <other/Constants.h>
+#include <ecs/systems/ChunkManagement.h>
 
 class Physics {
 public:
     Physics() = delete;
-    static void update(entt::registry &registry, double dt);
+    static void update(entt::registry &registry, ChunkManagement &chunkManagement, double dt);
 
 private:
-    static void updatePosition(entt::registry &registry, double dt);
+    static void updatePosition(entt::registry &registry, ChunkManagement &chunkManagement, double dt);
     static void updateVelocity(entt::registry &registry, double dt);
+    static void updateAccelFromVelocityTarget(entt::registry &registry, double dt);
 
 };
 
