@@ -33,8 +33,8 @@ int main() {
 
     glfwGetMonitorWorkarea(glfwGetPrimaryMonitor(), NULL, NULL, &screenWidthGlobal, &screenHeightGlobal);
 
-//    GLFWwindow* window = glfwCreateWindow(screenWidthGlobal, screenHeightGlobal, "Voxel Engine Test", glfwGetPrimaryMonitor(), NULL);
-    GLFWwindow* window = glfwCreateWindow(screenWidthGlobal/2, screenHeightGlobal/2, "Voxel Engine Test", NULL, NULL);
+    GLFWwindow* window = glfwCreateWindow(screenWidthGlobal, screenHeightGlobal, "Voxel Engine Test", glfwGetPrimaryMonitor(), NULL);
+//    GLFWwindow* window = glfwCreateWindow(screenWidthGlobal/2, screenHeightGlobal/2, "Voxel Engine Test", NULL, NULL);
     if (window == NULL)
     {
         std::cout << "Failed to create GLFW window" << std::endl;
@@ -90,13 +90,13 @@ int main() {
 
     glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MIN_FILTER, GL_NEAREST_MIPMAP_LINEAR);
     glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-    glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MAX_LEVEL, 5);
+//    glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MAX_LEVEL, 3);
     glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_S, GL_REPEAT);
     glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_T, GL_REPEAT);
 //    glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MAX_ANISOTROPY, 16);
 
     if (textures[0]) {
-        glTexImage3D(GL_TEXTURE_2D_ARRAY, 0, GL_RGB, 16, 16, 4, 0, GL_RGB, GL_UNSIGNED_BYTE, textures[0]);
+        glTexImage3D(GL_TEXTURE_2D_ARRAY, 0, GL_RGB, 16, 16, 6, 0, GL_RGB, GL_UNSIGNED_BYTE, textures[0]);
         glGenerateMipmap(GL_TEXTURE_2D_ARRAY);
     } else {
         std::cout << "Failed to load texture" << std::endl;
@@ -104,9 +104,6 @@ int main() {
     for (auto t : textures) {
         stbi_image_free(t);
     }
-
-
-
 
     World world("shaders/voxel/voxel_shader.vert", "shaders/voxel/voxel_shader.frag",
                 "shaders/voxel_tris/voxel_shader.vert", "shaders/voxel_tris/voxel_shader.frag");

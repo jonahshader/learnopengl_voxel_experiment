@@ -51,7 +51,7 @@ ChunkManagement::ChunkManagement(const char* vertexPathInstVer, const char* frag
     mt.seed(seed);
 
     mainNoise.SetNoiseType(FastNoise::SimplexFractal);
-    mainNoise.SetFrequency(0.0020);
+    mainNoise.SetFrequency(0.0010);
     mainNoise.SetFractalOctaves(7);
     mainNoise.SetSeed(intDist(mt));
 
@@ -76,8 +76,8 @@ ChunkManagement::ChunkManagement(const char* vertexPathInstVer, const char* frag
     smoothHill.SetSeed(intDist(mt));
 
     overallTerrainHeightOffset.SetNoiseType(FastNoise::SimplexFractal);
-    overallTerrainHeightOffset.SetFrequency(0.00005);
-    overallTerrainHeightOffset.SetFractalOctaves(2);
+    overallTerrainHeightOffset.SetFrequency(0.00001);
+    overallTerrainHeightOffset.SetFractalOctaves(3);
     overallTerrainHeightOffset.SetSeed(intDist(mt));
 
     caveNoiseA.SetNoiseType(FastNoise::SimplexFractal);
@@ -90,14 +90,21 @@ ChunkManagement::ChunkManagement(const char* vertexPathInstVer, const char* frag
     caveNoiseB.SetFractalOctaves(3);
     caveNoiseB.SetSeed(intDist(mt));
 
-    caveNoiseC.SetNoiseType(FastNoise::Cellular);
-    caveNoiseC.SetSeed(intDist(mt));
-    caveNoiseC.SetFrequency(0.02);
-    caveNoiseC.SetCellularReturnType(FastNoise::Distance2Div);
-    caveNoiseC.SetCellularDistanceFunction(FastNoise::Euclidean);
+//    caveNoiseC.SetNoiseType(FastNoise::Cellular);
+//    caveNoiseC.SetSeed(intDist(mt));
+//    caveNoiseC.SetFrequency(0.02);
+//    caveNoiseC.SetCellularReturnType(FastNoise::Distance2Div);
+//    caveNoiseC.SetCellularDistanceFunction(FastNoise::Euclidean);
 //    caveNoiseC.SetGradientPerturbAmp(2.5f);
 //    caveNoiseC.Fr
 //    caveNoiseC.SetFractalOctaves(3);
+
+    caveNoiseC.SetNoiseType(FastNoise::NoiseType::CubicFractal);
+//    caveNoiseC.SetCellularDistanceFunction()
+    caveNoiseC.SetSeed(intDist(mt));
+    caveNoiseC.SetFractalOctaves(7);
+    caveNoiseC.SetFrequency(0.01);
+    caveNoiseC.SetFractalType(FastNoise::RigidMulti);
 
 
     // buffer cube data
@@ -498,49 +505,60 @@ void ChunkManagement::generateChunk(volatile Components::ChunkStatusEnum* chunkS
         float zz = z;
         yy += overallTerrainHeightOffset.GetNoise(x, z) * 1000.0f;
 
+
         float slopeScaler = 0.0025f;
-        float terraceScalar = 3.0f;
-        float slope = -yy * slopeScaler;
+        float terraceScalar = 5.0f;
+        float terraceSize = 6.0;
 
         float terraceValRaw = terraceOffset.GetNoise(xx, zz);
         float terraceSelectRaw = terraceSelect.GetNoise(xx, zz);
-        float terraceVal = ((terraceValRaw + 1.f) * 0.5f) * (terraceSelectRaw + 1.0f) * 0.5f;
+        float terraceVal = ((terraceValRaw + 1.f) * 0.5f) * ((terraceSelectRaw > 0 ? 1 : -1) + 1.0f) * 0.5f;
+//        terraceVal = pow(terraceVal, 0.1f);
+//        terraceVal = 1.0f;
 
-        float s = std::max(terraceScalar * ((terraceValRaw + 1.f) * 0.5f), 1.0f);
-//        float s = std::pow(M_E, terraceValRaw * terraceScalar) * 10.0f;
-        float amplitude = slopeScaler * s * terraceVal;
-        float yModifier = amplitude * (floor(-y/s) - (-y/s));
+        float yTerraced = (floorf(yy / terraceSize) + 0.5f) * terraceSize;
+//        yy = yTerraced;
+        yy = (terraceVal * yTerraced) + (1-terraceVal) * yy;
 
-        float mainNoiseVal = mainNoise.GetNoise(xx, yy, zz) + slope + yModifier;
+        float slope = -yy * slopeScaler;
+        float mainNoiseVal = mainNoise.GetNoise(xx, yy, zz) + slope;
         float smoothHillVal = smoothHill.GetNoise(xx, yy, zz) * smoothHillMagnitude + slope;
         float smoothHillSelectVal = pow((smoothHillSelect.GetNoise(xx, yy, zz) + 1.0f) * 0.5f, 0.6f);
 
 //        float caveA = caveNoiseA.GetNoise(x, y, z);
 //        float caveB = caveNoiseB.GetNoise(x, y, z);
-//        float caveWarpScalar = 10.0f;
+//        float caveWarpScalar = 0.0f;
 //        float caveC = caveNoiseC.GetNoise(caveNoiseA.GetNoise(y, z) * caveWarpScalar + x,
 //                                          caveNoiseA.GetNoise(x, z) * caveWarpScalar + y,
 //                                          caveNoiseA.GetNoise(x, y) * caveWarpScalar + z);
 //        float caveMixed = caveC;
 //        bool isCave = caveMixed > 0.85;
-        bool isCave = false;
+//        bool isCave = false;
+
+        float c = caveNoiseC.GetNoise(x, y, z);
+        bool isCave = std::abs(c) > 0.15;
 
         if (!isCave) {
             float noiseOut = mainNoiseVal * (1-smoothHillSelectVal) + smoothHillVal * smoothHillSelectVal;
-            if (noiseOut > 0.1) {
-                (chunkData)[i] = 3;
-            } else if (noiseOut > 0.05) {
-                (chunkData)[i] = 2;
-            } else if (noiseOut > 0.0) {
-                (chunkData)[i] = 1;
-            } else {
-                (chunkData)[i] = 0;
-            }
+//            if (noiseOut > 0) {
+                if (terraceVal > 0.5 && noiseOut > 0.00 && yTerraced > yy) {
+                    chunkData[i] = 4;
+                } else
+                    if (noiseOut > 0.1) {
+                    (chunkData)[i] = 3;
+                } else if (noiseOut > 0.05) {
+                    (chunkData)[i] = 2;
+                } else if (noiseOut > 0.0) {
+                    (chunkData)[i] = 1;
+                } else {
+                    (chunkData)[i] = 0;
+                }
+//            } else {
+//                chunkData[i] = 0;
+//            }
         } else {
             chunkData[i] = 0;
         }
-
-
     }
 
 
@@ -972,27 +990,25 @@ void ChunkManagement::genVboVaoAndBufferTris(entt::registry &registry, entt::ent
 }
 
 void ChunkManagement::fixGrass(unsigned char *chunkData, std::vector<unsigned char*>* neighborChunks) {
-    //#pragma omp parallel for
-    for (int z = 0; z < CHUNK_SIZE; z++) for (int y = 0; y < CHUNK_SIZE - 1; y++) for (int x = 0; x < CHUNK_SIZE; x++) {
-                auto mat = Components::chunkDataGet(chunkData, x, (y + 1), z);
-                if (mat == 1 || mat == 2) {
-                    (chunkData)[x + y * CHUNK_SIZE + z * CHUNK_SIZE * CHUNK_SIZE] = 2;
-                }
-            }
-//#pragma omp parallel for
-    for (int z = 0; z < CHUNK_SIZE; z++) for (int x = 0; x < CHUNK_SIZE; x++) {
-            int y = CHUNK_SIZE - 1;
-            auto mat = Components::chunkDataGet(neighborChunks, x, (y + 1), z);
-            if (mat == 1 || mat == 2) {
-                (chunkData)[x + y * CHUNK_SIZE + z * CHUNK_SIZE * CHUNK_SIZE] = 2;
-            }
-        }
+//    for (int z = 0; z < CHUNK_SIZE; z++) for (int y = 0; y < CHUNK_SIZE - 1; y++) for (int x = 0; x < CHUNK_SIZE; x++) {
+//                auto mat = Components::chunkDataGet(chunkData, x, (y + 1), z);
+//                if (mat == 1 || mat == 2) {
+//                    (chunkData)[x + y * CHUNK_SIZE + z * CHUNK_SIZE * CHUNK_SIZE] = 2;
+//                }
+//            }
+//    for (int z = 0; z < CHUNK_SIZE; z++) for (int x = 0; x < CHUNK_SIZE; x++) {
+//            int y = CHUNK_SIZE - 1;
+//            auto mat = Components::chunkDataGet(neighborChunks, x, (y + 1), z);
+//            if (mat == 1 || mat == 2) {
+//                (chunkData)[x + y * CHUNK_SIZE + z * CHUNK_SIZE * CHUNK_SIZE] = 2;
+//            }
+//        }
 }
 
 void ChunkManagement::calculateBrightness(unsigned char *bVals, unsigned char *chunkData,
                                           std::vector<unsigned char *> *neighborChunks) {
-    const int aoWidth = 1;
-    const int aoHeight = 15;
+    const int aoWidth = 2;
+    const int aoHeight = 5;
 //#pragma omp parallel for
     for (int z = 0; z < CHUNK_SIZE; ++z) {
         for(int y = 0; y < CHUNK_SIZE; ++y) {
@@ -1094,17 +1110,21 @@ void ChunkManagement::generateMeshTris(volatile Components::ChunkStatusEnum* chu
                                 sideTexture = 1;
                                 bottomTexture = 2;
                                 break;
-                            case 2:
-                                topTexture = 2;
-                                sideTexture = 2;
-                                bottomTexture = 2;
-                                break;
-                            case 3:
-                                topTexture = 3;
-                                sideTexture = 3;
-                                bottomTexture = 3;
-                                break;
+//                            case 2:
+//                                topTexture = 2;
+//                                sideTexture = 2;
+//                                bottomTexture = 2;
+//                                break;
+//                            case 3:
+//                                topTexture = 3;
+//                                sideTexture = 3;
+//                                bottomTexture = 3;
+//                                break;
+
                             default:
+                                topTexture = material;
+                                sideTexture = material;
+                                bottomTexture = material;
                                 break;
                         }
 

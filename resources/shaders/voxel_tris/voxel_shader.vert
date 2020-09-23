@@ -1,6 +1,7 @@
 #version 430 core
 
-#define MAX_BRIGHTNESS (135.0f)
+#define MAX_BRIGHTNESS (125.0f)
+#define MIN_BRIGHTNESS (0.1f)
 
 layout (location = 0) in ivec3 xyz;
 layout (location = 1) in uint texture;
@@ -30,6 +31,6 @@ void main()
     texCoord_ = texCoord;
     texture_ = texture;
     normal_ = normInt;
-    brightness_ = (float(b + 0.0f) / (MAX_BRIGHTNESS + 0.0f));;
+    brightness_ = (MIN_BRIGHTNESS + (float(b + 0.0f) / (MAX_BRIGHTNESS + 0.0f))) / (1.0f + MIN_BRIGHTNESS);
     fogMix_ = pow(min(length(posBeforeTransform - camPos) / fogDistance, 1.0f), 2.0f);
 }

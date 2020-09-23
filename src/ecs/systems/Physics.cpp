@@ -37,9 +37,8 @@ void Physics::updatePosition(entt::registry &registry, ChunkManagement &chunkMan
                 int ycNew = floor(pos.pos.y);
                 int zcNew = floor(pos.pos.z);
 
-            if (ycNew < yc) {
-                chunkCollision.grounded = true;
-            }
+
+                chunkCollision.grounded = (ycNew < yc);
 
                 glm::dvec3 posPreMod = pos.pos;
                 glm::dvec3 velPreMod = vel.vel;
@@ -47,48 +46,62 @@ void Physics::updatePosition(entt::registry &registry, ChunkManagement &chunkMan
                 // try fixing just x
                 pos.pos.x = collider.lastValidPos.x;
                 vel.vel.x = 0;
+                int correctionLevel = 0;
                 if (chunkManagement.inSolidBlock(registry, pos.pos)) {
                     pos.pos.x = posPreMod.x;
                     vel.vel.x = velPreMod.x;
                     pos.pos.y = collider.lastValidPos.y;
                     vel.vel.y = 0;
+                    correctionLevel = 1;
                     if (chunkManagement.inSolidBlock(registry, pos.pos)) {
                         pos.pos.y = posPreMod.y;
                         vel.vel.y = velPreMod.y;
                         pos.pos.z = collider.lastValidPos.z;
                         vel.vel.z = 0;
+                        correctionLevel = 2;
                         if (chunkManagement.inSolidBlock(registry, pos.pos)) {
                             pos.pos.x = collider.lastValidPos.x;
                             vel.vel.x = 0;
+                            correctionLevel = 3;
                             if (chunkManagement.inSolidBlock(registry, pos.pos)) {
                                 pos.pos.z = posPreMod.z;
                                 vel.vel.z = velPreMod.z;
                                 pos.pos.y = collider.lastValidPos.y;
                                 vel.vel.y = 0;
+                                correctionLevel = 4;
                                 if (chunkManagement.inSolidBlock(registry, pos.pos)) {
                                     pos.pos.x = posPreMod.x;
                                     vel.vel.x = velPreMod.x;
                                     pos.pos.z = collider.lastValidPos.z;
                                     vel.vel.z = 0;
+                                    correctionLevel = 5;
                                     if (chunkManagement.inSolidBlock(registry, pos.pos)) {
                                         pos.pos = collider.lastValidPos;
                                         vel.vel.x = 0;
                                         vel.vel.y = 0;
                                         vel.vel.z = 0;
+                                        correctionLevel = 6;
+                                        if (chunkManagement.inSolidBlock(registry, pos.pos)) {
+                                            vel.vel = velPreMod;
+                                            pos.pos = posPreMod;
+                                        }
                                     }
                                 }
                             }
                         }
                     }
                 }
+                bool yFixed = correctionLevel == 1 || correctionLevel == 4 || correctionLevel == 5 || correctionLevel == 6;
+                chunkCollision.grounded = chunkCollision.grounded && yFixed;
+                std::cout << "correction level " << correctionLevel << std::endl;
             } else {
                 chunkCollision.grounded = false;
             }
         } else {
             vel.vel = glm::dvec3(0);
+            pos.pos = collider.lastValidPos;
             std::cout << "Resetting velocity, chunk not loaded" << std::endl;
         }
-
 
         collider.lastValidPos = pos.pos;
 
@@ -132,7 +145,7 @@ void Physics::updateAccelFromVelocityTarget(entt::registry &registry, double dt)
         double targetMagnitude = sqrt(pow(targetVel.targetVel.x, 2) + pow(targetVel.targetVel.z, 2));
         double currentDirection = atan2(vel.vel.z, vel.vel.x);
         double targetDirection = atan2(targetVel.targetVel.z, targetVel.targetVel.x);
-        double accel = 40;
+        double accel = 60;
 
         if (registry.has<Components::ChunkCollision>(entity)) {
             auto &chunkCollision = registry.get<Components::ChunkCollision>(entity);
@@ -141,12 +154,24 @@ void Physics::updateAccelFromVelocityTarget(entt::registry &registry, double dt)
                     acc.acc.x += accel * cos(targetDirection);
                     acc.acc.z += accel * sin(targetDirection);
                 } else {
-                    acc.acc.x -= accel * cos(currentDirection);
-                    acc.acc.z -= accel * sin(currentDirection);
+                    double cosCDir = cos(currentDirection);
+                    double sinCDir = sin(currentDirection);
+                    acc.acc.x -= accel * cosCDir;
+                    acc.acc.z -= accel * sinCDir;
+                    double futureVelX = vel.vel.x + acc.acc.x * dt;
+                    double futureVelZ = vel.vel.z + acc.acc.z * dt;
+                    double futureMagnitude = sqrt(pow(futureVelX, 2) + pow(futureVelZ, 2));
+                    if (futureMagnitude > currentMagnitude) {
+//                        vel.vel.x = 0;
+//                        vel.vel.z = 0;
+                        acc.acc.x = -vel.vel.x / dt;
+                        acc.acc.z = -vel.vel.z / dt;
+                    }
+
                 }
-                if (targetVel.targetVel.y > vel.vel.y) {
-                    vel.vel.y += targetVel.targetVel.y;
-                }
+//                if (targetVel.targetVel.y > vel.vel.y) {
+                    vel.vel.y = targetVel.targetVel.y;
+//                }
             } else {
                 if (targetMagnitude > currentMagnitude) {
                     acc.acc.x += accel * cos(targetDirection) * 0.25;
