@@ -114,7 +114,6 @@ private:
             0.f, 0.f, 1.f,  0.f, 0.f,  5.f,
     };
 
-
     void tryCreateChunk(entt::registry& registry, int xChunk, int yChunk, int zChunk);
     // entt::entity is just a uint32 so there is no need to reference, copying is fine.
     void tryRemoveChunk(entt::registry& registry, entt::entity chunkEntity);

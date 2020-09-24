@@ -29,7 +29,7 @@ void Physics::updatePosition(entt::registry &registry, ChunkManagement &chunkMan
         auto &chunkCollision = collisionTestView.get<Components::ChunkCollision>(entity);
 
         if (chunkManagement.isChunkDataLoaded(registry, chunkPos.x, chunkPos.y, chunkPos.z)) {
-            if (chunkManagement.inSolidBlock(registry, pos.pos)) {
+            if (checkRectangularCollision(registry, chunkManagement, pos.pos, collider)) {
                 int xc = floor(collider.lastValidPos.x);
                 int yc = floor(collider.lastValidPos.y);
                 int zc = floor(collider.lastValidPos.z);
@@ -47,41 +47,41 @@ void Physics::updatePosition(entt::registry &registry, ChunkManagement &chunkMan
                 pos.pos.x = collider.lastValidPos.x;
                 vel.vel.x = 0;
                 int correctionLevel = 0;
-                if (chunkManagement.inSolidBlock(registry, pos.pos)) {
+                if (checkRectangularCollision(registry, chunkManagement, pos.pos, collider)) {
                     pos.pos.x = posPreMod.x;
                     vel.vel.x = velPreMod.x;
                     pos.pos.y = collider.lastValidPos.y;
                     vel.vel.y = 0;
                     correctionLevel = 1;
-                    if (chunkManagement.inSolidBlock(registry, pos.pos)) {
+                    if (checkRectangularCollision(registry, chunkManagement, pos.pos, collider)) {
                         pos.pos.y = posPreMod.y;
                         vel.vel.y = velPreMod.y;
                         pos.pos.z = collider.lastValidPos.z;
                         vel.vel.z = 0;
                         correctionLevel = 2;
-                        if (chunkManagement.inSolidBlock(registry, pos.pos)) {
+                        if (checkRectangularCollision(registry, chunkManagement, pos.pos, collider)) {
                             pos.pos.x = collider.lastValidPos.x;
                             vel.vel.x = 0;
                             correctionLevel = 3;
-                            if (chunkManagement.inSolidBlock(registry, pos.pos)) {
+                            if (checkRectangularCollision(registry, chunkManagement, pos.pos, collider)) {
                                 pos.pos.z = posPreMod.z;
                                 vel.vel.z = velPreMod.z;
                                 pos.pos.y = collider.lastValidPos.y;
                                 vel.vel.y = 0;
                                 correctionLevel = 4;
-                                if (chunkManagement.inSolidBlock(registry, pos.pos)) {
+                                if (checkRectangularCollision(registry, chunkManagement, pos.pos, collider)) {
                                     pos.pos.x = posPreMod.x;
                                     vel.vel.x = velPreMod.x;
                                     pos.pos.z = collider.lastValidPos.z;
                                     vel.vel.z = 0;
                                     correctionLevel = 5;
-                                    if (chunkManagement.inSolidBlock(registry, pos.pos)) {
+                                    if (checkRectangularCollision(registry, chunkManagement, pos.pos, collider)) {
                                         pos.pos = collider.lastValidPos;
                                         vel.vel.x = 0;
                                         vel.vel.y = 0;
                                         vel.vel.z = 0;
                                         correctionLevel = 6;
-                                        if (chunkManagement.inSolidBlock(registry, pos.pos)) {
+                                        if (checkRectangularCollision(registry, chunkManagement, pos.pos, collider)) {
                                             vel.vel = velPreMod;
                                             pos.pos = posPreMod;
                                         }
@@ -170,15 +170,21 @@ void Physics::updateAccelFromVelocityTarget(entt::registry &registry, double dt)
 
                 }
 //                if (targetVel.targetVel.y > vel.vel.y) {
-                    vel.vel.y = targetVel.targetVel.y;
+                    vel.vel.y = targetVel.targetVel.y * std::max(1.0, currentMagnitude / 10.0);
 //                }
             } else {
                 if (targetMagnitude > currentMagnitude) {
-                    acc.acc.x += accel * cos(targetDirection) * 0.25;
-                    acc.acc.z += accel * sin(targetDirection) * 0.25;
+                    acc.acc.x += accel * cos(targetDirection) * 0.33;
+                    acc.acc.z += accel * sin(targetDirection) * 0.33;
                 } else {
-//                    acc.acc.x -= accel * cos(currentDirection) * 0.25;
-//                    acc.acc.z -= accel * sin(currentDirection) * 0.25;
+                    if (targetMagnitude > 0) {
+                        acc.acc.x -= accel * cos(currentDirection) * 0.33;
+                        acc.acc.z -= accel * sin(currentDirection) * 0.33;
+                        acc.acc.x += accel * cos(targetDirection) * 0.33;
+                        acc.acc.z += accel * sin(targetDirection) * 0.33;
+                    }
+//                    acc.acc.x -= accel * cos(currentDirection) * 0.125;
+//                    acc.acc.z -= accel * sin(currentDirection) * 0.125;
                 }
             }
         } else {
@@ -244,4 +250,20 @@ void Physics::updateAccelFromVelocityTarget(entt::registry &registry, double dt)
 //            }
 //        }
     }
+}
+
+bool Physics::checkRectangularCollision(entt::registry &registry, ChunkManagement &chunkManagement, glm::dvec3 &pos, Components::CylinderCollider &collider) {
+    glm::dvec3 moddedPos;
+    for (int y = 0; y <= 2; ++y)
+    for (int x = -1; x <= 1; ++x) {
+        for (int z = -1; z <= 1; ++z) {
+            moddedPos = pos;
+            moddedPos.x += x * collider.radius;
+            moddedPos.z += z * collider.radius;
+            moddedPos.y += y * collider.height * 0.5;
+
+            if (chunkManagement.inSolidBlock(registry, moddedPos)) return true;
+        }
+    }
+    return false;
 }
