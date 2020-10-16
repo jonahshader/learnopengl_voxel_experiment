@@ -20,10 +20,10 @@ skyColor(0.5f, 0.45f, 0.85f)
 {
     // create player
     entt::entity player = registry.create();
-    registry.emplace<Components::Position>(player, glm::dvec3(0.5, 128, 0.5));
+    registry.emplace<Components::Position>(player, glm::dvec3(0.5, 0.5, 0.5));
     registry.emplace<Components::Velocity>(player, glm::dvec3(0.0));
     registry.emplace<Components::Acceleration>(player, glm::dvec3(0.0));
-    registry.emplace<Components::CylinderCollider>(player, 1.9, 0.4, glm::dvec3(0.5, 128, 0.5));
+    registry.emplace<Components::CylinderCollider>(player, 1.9, 0.4, glm::dvec3(0.5, 0.5, 0.5));
     registry.emplace<Components::ChunkCollision>(player, false);
     registry.emplace<Components::ChunkPosition>(player, 0, 0, 0);
     registry.emplace<Components::DirectionPitchYaw>(player, M_PI / 2, 0.0);

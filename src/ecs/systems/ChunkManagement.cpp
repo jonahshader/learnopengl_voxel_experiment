@@ -178,7 +178,7 @@ bool ChunkManagement::inSolidBlock(entt::registry &registry, glm::dvec3 &pos) {
         if (Components::chunkDataGet(getChunkData(registry, xChunk, yChunk, zChunk).data.data(), xLocal, yLocal, zLocal) != 0)
             return true;
         else return false;
-    } else return false;
+    } else return true;
 }
 
 Components::ChunkData& ChunkManagement::getChunkData(entt::registry &registry, int xChunk, int yChunk, int zChunk) {
@@ -507,8 +507,8 @@ void ChunkManagement::generateChunk(volatile Components::ChunkStatusEnum* chunkS
 
 
         float slopeScaler = 0.0025f;
-        float terraceScalar = 5.0f;
-        float terraceSize = 6.0;
+//        float terraceScalar = 5.0f;
+        float terraceSize = 12.0;
 
         float terraceValRaw = terraceOffset.GetNoise(xx, zz);
         float terraceSelectRaw = terraceSelect.GetNoise(xx, zz);
@@ -541,7 +541,7 @@ void ChunkManagement::generateChunk(volatile Components::ChunkStatusEnum* chunkS
         if (!isCave) {
             float noiseOut = mainNoiseVal * (1-smoothHillSelectVal) + smoothHillVal * smoothHillSelectVal;
 //            if (noiseOut > 0) {
-                if (terraceVal > 0.5 && noiseOut > 0.00 && yTerraced > yy) {
+                if (terraceVal > 0.5 && noiseOut > 0.00 && yTerraced < yy) {
                     chunkData[i] = 4;
                 } else
                     if (noiseOut > 0.1) {
@@ -990,19 +990,19 @@ void ChunkManagement::genVboVaoAndBufferTris(entt::registry &registry, entt::ent
 }
 
 void ChunkManagement::fixGrass(unsigned char *chunkData, std::vector<unsigned char*>* neighborChunks) {
-//    for (int z = 0; z < CHUNK_SIZE; z++) for (int y = 0; y < CHUNK_SIZE - 1; y++) for (int x = 0; x < CHUNK_SIZE; x++) {
-//                auto mat = Components::chunkDataGet(chunkData, x, (y + 1), z);
-//                if (mat == 1 || mat == 2) {
-//                    (chunkData)[x + y * CHUNK_SIZE + z * CHUNK_SIZE * CHUNK_SIZE] = 2;
-//                }
-//            }
-//    for (int z = 0; z < CHUNK_SIZE; z++) for (int x = 0; x < CHUNK_SIZE; x++) {
-//            int y = CHUNK_SIZE - 1;
-//            auto mat = Components::chunkDataGet(neighborChunks, x, (y + 1), z);
-//            if (mat == 1 || mat == 2) {
-//                (chunkData)[x + y * CHUNK_SIZE + z * CHUNK_SIZE * CHUNK_SIZE] = 2;
-//            }
-//        }
+    for (int z = 0; z < CHUNK_SIZE; z++) for (int y = 0; y < CHUNK_SIZE - 1; y++) for (int x = 0; x < CHUNK_SIZE; x++) {
+                auto mat = Components::chunkDataGet(chunkData, x, (y + 1), z);
+                if (mat == 1 || mat == 2) {
+                    (chunkData)[x + y * CHUNK_SIZE + z * CHUNK_SIZE * CHUNK_SIZE] = 2;
+                }
+            }
+    for (int z = 0; z < CHUNK_SIZE; z++) for (int x = 0; x < CHUNK_SIZE; x++) {
+            int y = CHUNK_SIZE - 1;
+            auto mat = Components::chunkDataGet(neighborChunks, x, (y + 1), z);
+            if (mat == 1 || mat == 2) {
+                (chunkData)[x + y * CHUNK_SIZE + z * CHUNK_SIZE * CHUNK_SIZE] = 2;
+            }
+        }
 }
 
 void ChunkManagement::calculateBrightness(unsigned char *bVals, unsigned char *chunkData,

@@ -32,5 +32,6 @@ void main()
     texture_ = texture;
     normal_ = normInt;
     brightness_ = (MIN_BRIGHTNESS + (float(b + 0.0f) / (MAX_BRIGHTNESS + 0.0f))) / (1.0f + MIN_BRIGHTNESS);
-    fogMix_ = pow(min(length(posBeforeTransform - camPos) / fogDistance, 1.0f), 2.0f);
+//    fogMix_ = pow(min(length(posBeforeTransform - camPos) / fogDistance, 1.0f), 2.0f);
+    fogMix_ = min(length(posBeforeTransform - camPos) / fogDistance, 1.0f);
 }

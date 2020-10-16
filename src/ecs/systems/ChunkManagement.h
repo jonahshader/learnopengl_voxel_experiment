@@ -40,9 +40,9 @@ public:
 
 private:
     const static int CHUNK_LOAD_RADIUS = 350 + CHUNK_SIZE; // this is in voxels, not chunks
-    const static int CHUNK_UNLOAD_RADIUS = 360 + CHUNK_SIZE; // this is in voxels, not chunks
+    const static int CHUNK_UNLOAD_RADIUS = 350 + CHUNK_SIZE + CHUNK_SIZE; // this is in voxels, not chunks
     const static int MAX_MESH_BUFFERS_PER_FRAME = 1;
-    const static int MAX_CONCURRENT_MESH_GENS = 4;
+    const static int MAX_CONCURRENT_MESH_GENS = 5;
     const static int MAX_GENERATES_PER_FRAME = 1;
     const static int MAX_CONCURRENT_GENERATES = 8;
     const static int NUM_BYTES_PER_VERTEX = 8; // was 6
