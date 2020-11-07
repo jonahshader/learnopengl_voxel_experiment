@@ -9,8 +9,12 @@
 
 World::World(const char* vertexPathInst, const char* fragmentPathInst,
              const char* vertexPathTri, const char* fragmentPathTri) :
+rd(),
 registry(),
-chunkManagement(vertexPathInst, fragmentPathInst, vertexPathTri, fragmentPathTri, time(NULL)),
+chunkManagement(vertexPathInst, fragmentPathInst, vertexPathTri, fragmentPathTri, rd),
+ai(rd),
+graphics(registry, rd),
+textureManager(),
 pMouseX(0.0),
 pMouseY(0.0),
 firstMouse(true),
@@ -18,6 +22,9 @@ screenWidth(800),
 screenHeight(600),
 skyColor(0.5f, 0.45f, 0.85f)
 {
+    // load textures
+    textureManager.addSpriteArray("textures/spritesheet.png", "textures/spritesheet.atlas");
+    textureManager.addSpriteSheet("textures/padded_textures.png", "textures/padded_textures.atlas");
     // create player
     entt::entity player = registry.create();
     registry.emplace<Components::Position>(player, glm::dvec3(0.5, 0.5, 0.5));
@@ -36,9 +43,11 @@ skyColor(0.5f, 0.45f, 0.85f)
 }
 
 void World::run(double dt, GLFWwindow *window) {
+    chunkManagement.run(registry);
     PlayerControl::updateMovement(registry, dt, window);
     Physics::update(registry, chunkManagement, dt);
-    chunkManagement.run(registry);
+    ai.update(registry, dt);
+    graphics.update(registry);
 
 //    registry.view<Components::Position, Components::ChunkPosition, Components::DirectionPitchYaw>().each([](auto &pos, auto &chunkPos, auto &dir) {
 //        std::cout << "Position: " << Components::dvecToString(pos.pos)
@@ -49,7 +58,8 @@ void World::run(double dt, GLFWwindow *window) {
 }
 
 void World::draw(GLFWwindow *window) {
-    chunkManagement.render(registry, screenWidth, screenHeight, skyColor);
+    chunkManagement.render(registry, textureManager, screenWidth, screenHeight, skyColor);
+    graphics.render(registry);
 }
 
 Shader &World::getShader() {

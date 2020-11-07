@@ -16,7 +16,6 @@ public:
     static void updateLook(entt::registry &registry, double dPitch, double dYaw);
 
 private:
-    static constexpr double DEFAULT_MAX_SPEED = 8.0;
     static constexpr double DEFAULT_LOOK_SENS = 0.005/M_PI;
 };
 

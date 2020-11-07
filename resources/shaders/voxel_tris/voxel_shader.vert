@@ -1,7 +1,7 @@
 #version 430 core
 
-#define MAX_BRIGHTNESS (125.0f)
-#define MIN_BRIGHTNESS (0.1f)
+#define MAX_BRIGHTNESS (45.0f)
+#define MIN_BRIGHTNESS (0.1f) // from 0 to 1
 
 layout (location = 0) in ivec3 xyz;
 layout (location = 1) in uint texture;

@@ -6,13 +6,17 @@
 #define LEARNOPENGL_VOXEL_EXPERIMENT_WORLD_H
 
 #include <ecs/systems/ChunkManagement.h>
+#include <ecs/systems/AI.h>
 #include <ecs/systems/Physics.h>
 #include <ecs/systems/PlayerControl.h>
+#include <ecs/systems/Graphics.h>
 
 #include <entt/entt.hpp>
 #include <ecs/Components.h>
+#include <graphics/TextureManager.h>
 #include <glad/glad.h>
 #include <glm/glm.hpp>
+#include <random>
 
 class World {
 public:
@@ -30,14 +34,20 @@ public:
     const glm::vec3 &getSkyColor() const;
 
 private:
+    std::random_device rd;
     entt::registry registry;
 
     ChunkManagement chunkManagement;
+    AI ai;
+    Graphics graphics;
+    TextureManager textureManager;
+
 
     double pMouseX, pMouseY;
     bool firstMouse;
     int screenWidth, screenHeight;
     glm::vec3 skyColor;
+
 
 };
 

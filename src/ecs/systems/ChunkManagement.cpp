@@ -11,6 +11,7 @@
 #include <glm/mat4x4.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <ecs/Components.h>
+#include <graphics/TextureManager.h>
 #include <thread>
 #include <pthread.h>
 #include <chrono>
@@ -23,9 +24,10 @@ Components::Position ChunkManagement::chunkComparePos = {glm::dvec3(0.0)};
 
 ChunkManagement::ChunkManagement(const char* vertexPathInstVer, const char* fragmentPathInstVer,
                                  const char* vertexPathTriVer, const char* fragmentPathTriVer,
-                                 int seed) :
+                                 std::random_device &rd) :
         chunkKeyToChunkEntity(),
         chunks(),
+        rd(rd),
         pool(MAX_CONCURRENT_GENERATES + 1 + MAX_CONCURRENT_MESH_GENS),
 //        chunkGenThreadPool(),
         voxelShader(vertexPathInstVer, fragmentPathInstVer),
@@ -45,10 +47,8 @@ ChunkManagement::ChunkManagement(const char* vertexPathInstVer, const char* frag
         chunksCurrentlyMeshing(0),
         cubeVbo(0)
 {
-    std::random_device rd;
     std::mt19937 mt(rd());
     std::uniform_int_distribution intDist;
-    mt.seed(seed);
 
     mainNoise.SetNoiseType(FastNoise::SimplexFractal);
     mainNoise.SetFrequency(0.0010);
@@ -506,7 +506,7 @@ void ChunkManagement::generateChunk(volatile Components::ChunkStatusEnum* chunkS
         yy += overallTerrainHeightOffset.GetNoise(x, z) * 1000.0f;
 
 
-        float slopeScaler = 0.0025f;
+        float slopeScaler = 0.0015f;
 //        float terraceScalar = 5.0f;
         float terraceSize = 12.0;
 
@@ -751,7 +751,7 @@ void ChunkManagement::genVboVaoAndBuffer(entt::registry& registry, entt::entity 
     // textures
     glBindBuffer(GL_ARRAY_BUFFER, gl.texturesVbo);
 
-    for (int i = 0; i < 6; i++) {
+    for (unsigned int i = 0; i < 6; i++) {
         glVertexAttribIPointer(5 + i, 1, GL_UNSIGNED_BYTE, 6 * sizeof(unsigned char), (void*)i);
         glEnableVertexAttribArray(5 + i );
         glVertexAttribDivisor(5 + i, 1);
@@ -789,7 +789,7 @@ void ChunkManagement::genVboVaoAndBuffer(entt::registry& registry, entt::entity 
     registry.remove<Components::ChunkMeshData>(chunkEntity);
 }
 
-void ChunkManagement::render(entt::registry &registry, int screenWidth, int screenHeight, const glm::vec3 &skyColor) {
+void ChunkManagement::render(entt::registry &registry, TextureManager &tm, int screenWidth, int screenHeight, const glm::vec3 &skyColor) {
     /*
      * find player
      * convert player orientation into transform matrix
@@ -810,6 +810,8 @@ void ChunkManagement::render(entt::registry &registry, int screenWidth, int scre
     }
 
     if (playerFound) {
+        // set texture unit
+//        glActiveTexture(GL_TEXTURE0 + tm.getTextureInfoA("grass_top").textureUnit);
         auto [playerCam, playerPos, playerChunkPos, playerDir] = registry.get<Components::CameraAttach, Components::Position, Components::ChunkPosition, Components::DirectionPitchYaw>(player);
 
         glm::mat4 projection = glm::perspective(glm::radians((float) playerCam.fov), screenWidth / (float) screenHeight, 0.1f, 600.0f);
@@ -883,6 +885,8 @@ void ChunkManagement::render(entt::registry &registry, int screenWidth, int scre
 
         auto renderableChunksTris = registry.view<Components::ChunkPosition, Components::ChunkOpenGLTriVer>();
 
+        int drawCalls = 0;
+        int triangles = 0;
         // render visible chunks
         for (auto c : renderableChunksTris) {
             auto [chunkPos, chunkGL] = renderableChunksTris.get<Components::ChunkPosition, Components::ChunkOpenGLTriVer>(c);
@@ -899,10 +903,14 @@ void ChunkManagement::render(entt::registry &registry, int screenWidth, int scre
                     voxelShader.setVec3i("chunkPos", chunkPos.x - playerChunkPos.x, chunkPos.y - playerChunkPos.y, chunkPos.z - playerChunkPos.z);
                     glBindVertexArray(chunkGL.vao);
                     glDrawArrays(GL_TRIANGLES, 0, chunkGL.numTriangles);
+                    ++drawCalls;
+                    triangles += chunkGL.numTriangles;
                     glBindVertexArray(0);
                 }
             }
         }
+
+        std::cout << "Draw calls: " << drawCalls << " Tris: " << triangles << std::endl;
 #endif//TRI_MODE
     }
 }
@@ -1007,7 +1015,7 @@ void ChunkManagement::fixGrass(unsigned char *chunkData, std::vector<unsigned ch
 
 void ChunkManagement::calculateBrightness(unsigned char *bVals, unsigned char *chunkData,
                                           std::vector<unsigned char *> *neighborChunks) {
-    const int aoWidth = 2;
+    const int aoWidth = 1;
     const int aoHeight = 5;
 //#pragma omp parallel for
     for (int z = 0; z < CHUNK_SIZE; ++z) {
@@ -1163,13 +1171,13 @@ void ChunkManagement::generateMeshTris(volatile Components::ChunkStatusEnum* chu
                         }
                         bottomFaceBreak:
                         if (visible) {
-                            makeVertex(*tris, x + xSize, y, z, bottomTexture, xSize, 0, brightness, 5);
-                            makeVertex(*tris, x + xSize, y, z + zSize, bottomTexture, xSize, zSize, brightness, 5);
-                            makeVertex(*tris, x, y, z + zSize, bottomTexture, 0, zSize, brightness, 5);
+                            makeVertex(*tris, x + xSize, y, z, bottomTexture, xSize, 0, brightness * BOTTOM_BRIGHTNESS_MULT, 5);
+                            makeVertex(*tris, x + xSize, y, z + zSize, bottomTexture, xSize, zSize, brightness * BOTTOM_BRIGHTNESS_MULT, 5);
+                            makeVertex(*tris, x, y, z + zSize, bottomTexture, 0, zSize, brightness * BOTTOM_BRIGHTNESS_MULT, 5);
 
-                            makeVertex(*tris, x, y, z, bottomTexture, 0, 0, brightness, 5);
-                            makeVertex(*tris, x + xSize, y, z, bottomTexture, xSize, 0, brightness, 5);
-                            makeVertex(*tris, x, y, z + zSize, bottomTexture, 0, zSize, brightness, 5);
+                            makeVertex(*tris, x, y, z, bottomTexture, 0, 0, brightness * BOTTOM_BRIGHTNESS_MULT, 5);
+                            makeVertex(*tris, x + xSize, y, z, bottomTexture, xSize, 0, brightness * BOTTOM_BRIGHTNESS_MULT, 5);
+                            makeVertex(*tris, x, y, z + zSize, bottomTexture, 0, zSize, brightness * BOTTOM_BRIGHTNESS_MULT, 5);
                         }
 
                         visible = false;
@@ -1184,13 +1192,13 @@ void ChunkManagement::generateMeshTris(volatile Components::ChunkStatusEnum* chu
                         }
                         frontFaceBreak:
                         if (visible) {
-                            makeVertex(*tris, x, y, z + zSize, sideTexture, 0, ySize, brightness, 0);
-                            makeVertex(*tris, x + xSize, y, z + zSize, sideTexture, xSize, ySize, brightness, 0);
-                            makeVertex(*tris, x + xSize, y + ySize, z + zSize, sideTexture, xSize, 0, brightness, 0);
+                            makeVertex(*tris, x, y, z + zSize, sideTexture, 0, ySize, brightness * SIDE_BRIGHTNESS_MULT, 0);
+                            makeVertex(*tris, x + xSize, y, z + zSize, sideTexture, xSize, ySize, brightness * SIDE_BRIGHTNESS_MULT, 0);
+                            makeVertex(*tris, x + xSize, y + ySize, z + zSize, sideTexture, xSize, 0, brightness * SIDE_BRIGHTNESS_MULT, 0);
 
-                            makeVertex(*tris, x, y, z + zSize, sideTexture, 0, ySize, brightness, 0);
-                            makeVertex(*tris, x + xSize, y + ySize, z + zSize, sideTexture, xSize, 0, brightness, 0);
-                            makeVertex(*tris, x, y + ySize, z + zSize, sideTexture, 0, 0, brightness, 0);
+                            makeVertex(*tris, x, y, z + zSize, sideTexture, 0, ySize, brightness * SIDE_BRIGHTNESS_MULT, 0);
+                            makeVertex(*tris, x + xSize, y + ySize, z + zSize, sideTexture, xSize, 0, brightness * SIDE_BRIGHTNESS_MULT, 0);
+                            makeVertex(*tris, x, y + ySize, z + zSize, sideTexture, 0, 0, brightness * SIDE_BRIGHTNESS_MULT, 0);
                         }
 
                         visible = false;
@@ -1205,13 +1213,13 @@ void ChunkManagement::generateMeshTris(volatile Components::ChunkStatusEnum* chu
                         }
                         rightFaceBreak:
                         if (visible) {
-                            makeVertex(*tris, x + xSize, y, z + zSize, sideTexture, 0, ySize, brightness, 1);
-                            makeVertex(*tris, x + xSize, y, z, sideTexture, zSize, ySize, brightness, 1);
-                            makeVertex(*tris, x + xSize, y + ySize, z, sideTexture, zSize, 0, brightness, 1);
+                            makeVertex(*tris, x + xSize, y, z + zSize, sideTexture, 0, ySize, brightness * SIDE_BRIGHTNESS_MULT, 1);
+                            makeVertex(*tris, x + xSize, y, z, sideTexture, zSize, ySize, brightness * SIDE_BRIGHTNESS_MULT, 1);
+                            makeVertex(*tris, x + xSize, y + ySize, z, sideTexture, zSize, 0, brightness * SIDE_BRIGHTNESS_MULT, 1);
 
-                            makeVertex(*tris, x + xSize, y, z + zSize, sideTexture, 0, ySize, brightness, 1);
-                            makeVertex(*tris, x + xSize, y + ySize, z, sideTexture, zSize, 0, brightness, 1);
-                            makeVertex(*tris, x + xSize, y + ySize, z + zSize, sideTexture, 0, 0, brightness, 1);
+                            makeVertex(*tris, x + xSize, y, z + zSize, sideTexture, 0, ySize, brightness * SIDE_BRIGHTNESS_MULT, 1);
+                            makeVertex(*tris, x + xSize, y + ySize, z, sideTexture, zSize, 0, brightness * SIDE_BRIGHTNESS_MULT, 1);
+                            makeVertex(*tris, x + xSize, y + ySize, z + zSize, sideTexture, 0, 0, brightness * SIDE_BRIGHTNESS_MULT, 1);
                         }
 
                         visible = false;
@@ -1226,13 +1234,13 @@ void ChunkManagement::generateMeshTris(volatile Components::ChunkStatusEnum* chu
                         }
                         backFaceBreak:
                         if (visible) {
-                            makeVertex(*tris, x + xSize, y + ySize, z, sideTexture, xSize, 0, brightness, 0);
-                            makeVertex(*tris, x + xSize, y, z, sideTexture, xSize, ySize, brightness, 0);
-                            makeVertex(*tris, x, y, z, sideTexture, 0, ySize, brightness, 0);
+                            makeVertex(*tris, x + xSize, y + ySize, z, sideTexture, xSize, 0, brightness * SIDE_BRIGHTNESS_MULT, 0);
+                            makeVertex(*tris, x + xSize, y, z, sideTexture, xSize, ySize, brightness * SIDE_BRIGHTNESS_MULT, 0);
+                            makeVertex(*tris, x, y, z, sideTexture, 0, ySize, brightness * SIDE_BRIGHTNESS_MULT, 0);
 
-                            makeVertex(*tris, x, y + ySize, z, sideTexture, 0, 0, brightness, 0);
-                            makeVertex(*tris, x + xSize, y + ySize, z, sideTexture, xSize, 0, brightness, 0);
-                            makeVertex(*tris, x, y, z, sideTexture, 0, ySize, brightness, 0);
+                            makeVertex(*tris, x, y + ySize, z, sideTexture, 0, 0, brightness * SIDE_BRIGHTNESS_MULT, 0);
+                            makeVertex(*tris, x + xSize, y + ySize, z, sideTexture, xSize, 0, brightness * SIDE_BRIGHTNESS_MULT, 0);
+                            makeVertex(*tris, x, y, z, sideTexture, 0, ySize, brightness * SIDE_BRIGHTNESS_MULT, 0);
                         }
 
                         visible = false;
@@ -1247,13 +1255,13 @@ void ChunkManagement::generateMeshTris(volatile Components::ChunkStatusEnum* chu
                         }
                         leftFaceBreak:
                         if (visible) {
-                            makeVertex(*tris, x, y + ySize, z, sideTexture, zSize, 0, brightness, 1);
-                            makeVertex(*tris, x, y, z, sideTexture, zSize, ySize, brightness, 1);
-                            makeVertex(*tris, x, y, z + zSize, sideTexture, 0, ySize, brightness, 1);
+                            makeVertex(*tris, x, y + ySize, z, sideTexture, zSize, 0, brightness * SIDE_BRIGHTNESS_MULT, 1);
+                            makeVertex(*tris, x, y, z, sideTexture, zSize, ySize, brightness * SIDE_BRIGHTNESS_MULT, 1);
+                            makeVertex(*tris, x, y, z + zSize, sideTexture, 0, ySize, brightness * SIDE_BRIGHTNESS_MULT, 1);
 
-                            makeVertex(*tris, x, y + ySize, z + zSize, sideTexture, 0, 0, brightness, 1);
-                            makeVertex(*tris, x, y + ySize, z, sideTexture, zSize, 0, brightness, 1);
-                            makeVertex(*tris, x, y, z + zSize, sideTexture, 0, ySize, brightness, 1);
+                            makeVertex(*tris, x, y + ySize, z + zSize, sideTexture, 0, 0, brightness * SIDE_BRIGHTNESS_MULT, 1);
+                            makeVertex(*tris, x, y + ySize, z, sideTexture, zSize, 0, brightness * SIDE_BRIGHTNESS_MULT, 1);
+                            makeVertex(*tris, x, y, z + zSize, sideTexture, 0, ySize, brightness * SIDE_BRIGHTNESS_MULT, 1);
                         }
                     }
                 }

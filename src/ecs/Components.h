@@ -137,6 +137,18 @@ public:
         double gravity;
     };
 
+    struct GraphicBillboard {
+        unsigned char texture;
+        double width;
+        double height;
+        bool yLocked;
+    };
+
+    struct AIRandomWalking {
+        double newDirectionPeriod;
+        double newDirectionTimer;
+    };
+
     static std::string dvecToString(glm::dvec3 &vec);
 
 };

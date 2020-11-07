@@ -4,6 +4,7 @@
 
 #include "PlayerControl.h"
 #include <ecs/Components.h>
+#include <other/Constants.h>
 #include <glm/glm.hpp>
 #include <iostream>
 
@@ -25,7 +26,7 @@ void PlayerControl::updateMovement(entt::registry &registry, double dt, GLFWwind
         auto [vel, dir] = registry.get<Components::Velocity, Components::DirectionPitchYaw>(entity);
 
         double speed = DEFAULT_MAX_SPEED;
-        double jumpSpeed = DEFAULT_MAX_SPEED;
+        double jumpSpeed = DEFAULT_JUMP_SPEED;
         if (registry.has<Components::TravelMaxSpeed>(entity)) {
             speed = registry.get<Components::TravelMaxSpeed>(entity).maxSpeed;
         }
