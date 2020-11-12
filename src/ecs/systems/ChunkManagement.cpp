@@ -47,48 +47,48 @@ ChunkManagement::ChunkManagement(const char* vertexPathInstVer, const char* frag
         chunksCurrentlyMeshing(0),
         cubeVbo(0)
 {
-    std::mt19937 mt(rd());
+    std::mt19937 mt(time(0));
     std::uniform_int_distribution intDist;
 
     mainNoise.SetNoiseType(FastNoise::SimplexFractal);
     mainNoise.SetFrequency(0.0010);
     mainNoise.SetFractalOctaves(7);
-    mainNoise.SetSeed(intDist(mt));
+    mainNoise.SetSeed(mt());
 
     terraceOffset.SetNoiseType(FastNoise::SimplexFractal);
     terraceOffset.SetFrequency(0.006);
     terraceOffset.SetFractalOctaves(3);
-    terraceOffset.SetSeed(intDist(mt));
+    terraceOffset.SetSeed(mt());
 
     terraceSelect.SetNoiseType(FastNoise::SimplexFractal);
     terraceSelect.SetFrequency(0.002);
     terraceSelect.SetFractalOctaves(2);
-    terraceSelect.SetSeed(intDist(mt));
+    terraceSelect.SetSeed(mt());
 
     smoothHillSelect.SetNoiseType(FastNoise::SimplexFractal);
     smoothHillSelect.SetFrequency(0.001);
     smoothHillSelect.SetFractalOctaves(3);
-    smoothHillSelect.SetSeed(intDist(mt));
+    smoothHillSelect.SetSeed(mt());
 
     smoothHill.SetNoiseType(FastNoise::SimplexFractal);
     smoothHill.SetFrequency(0.0010);
     smoothHill.SetFractalOctaves(5);
-    smoothHill.SetSeed(intDist(mt));
+    smoothHill.SetSeed(mt());
 
     overallTerrainHeightOffset.SetNoiseType(FastNoise::SimplexFractal);
     overallTerrainHeightOffset.SetFrequency(0.00001);
     overallTerrainHeightOffset.SetFractalOctaves(3);
-    overallTerrainHeightOffset.SetSeed(intDist(mt));
+    overallTerrainHeightOffset.SetSeed(mt());
 
     caveNoiseA.SetNoiseType(FastNoise::SimplexFractal);
     caveNoiseA.SetFrequency(0.005);
     caveNoiseA.SetFractalOctaves(3);
-    caveNoiseA.SetSeed(intDist(mt));
+    caveNoiseA.SetSeed(mt());
 
     caveNoiseB.SetNoiseType(FastNoise::SimplexFractal);
     caveNoiseB.SetFrequency(0.005);
     caveNoiseB.SetFractalOctaves(3);
-    caveNoiseB.SetSeed(intDist(mt));
+    caveNoiseB.SetSeed(mt());
 
 //    caveNoiseC.SetNoiseType(FastNoise::Cellular);
 //    caveNoiseC.SetSeed(intDist(mt));
@@ -101,7 +101,7 @@ ChunkManagement::ChunkManagement(const char* vertexPathInstVer, const char* frag
 
     caveNoiseC.SetNoiseType(FastNoise::NoiseType::CubicFractal);
 //    caveNoiseC.SetCellularDistanceFunction()
-    caveNoiseC.SetSeed(intDist(mt));
+    caveNoiseC.SetSeed(mt());
     caveNoiseC.SetFractalOctaves(7);
     caveNoiseC.SetFrequency(0.01);
     caveNoiseC.SetFractalType(FastNoise::RigidMulti);
@@ -180,6 +180,18 @@ bool ChunkManagement::inSolidBlock(entt::registry &registry, glm::dvec3 &pos) {
         else return false;
     } else return true;
 }
+
+bool ChunkManagement::inSolidBlock(entt::registry &registry, glm::dvec3 &pos, int cx, int cy, int cz) {
+    int xLocal = floor(pos.x) - cx * CHUNK_SIZE;
+    int yLocal = floor(pos.y) - cy * CHUNK_SIZE;
+    int zLocal = floor(pos.z) - cz * CHUNK_SIZE;
+    if (chunkHasData(registry, cx, cy, cz)) {
+        if (Components::chunkDataGet(getChunkData(registry, cx, cy, cz).data.data(), xLocal, yLocal, zLocal) != 0)
+            return true;
+        else return false;
+    } else return true;
+}
+
 
 Components::ChunkData& ChunkManagement::getChunkData(entt::registry &registry, int xChunk, int yChunk, int zChunk) {
     return registry.get<Components::ChunkData>(chunkKeyToChunkEntity[chunkPositionToKey(xChunk, yChunk, zChunk)]);
@@ -878,6 +890,7 @@ void ChunkManagement::render(entt::registry &registry, TextureManager &tm, int s
         voxelShaderTris.setVec3("skyColor", skyColor.r, skyColor.g, skyColor.b);
         voxelShaderTris.setUInt("chunkSize", CHUNK_SIZE);
         voxelShaderTris.setMatrix4("viewProjection", view);
+        voxelShaderTris.setInt("sampler", 0);
         voxelShaderTris.setVec3("camPos",
                                 playerPos.pos.x + playerCam.posOffset.x - playerChunkPos.x * CHUNK_SIZE,
                                 playerPos.pos.y + playerCam.posOffset.y - playerChunkPos.y * CHUNK_SIZE,
@@ -913,10 +926,6 @@ void ChunkManagement::render(entt::registry &registry, TextureManager &tm, int s
         std::cout << "Draw calls: " << drawCalls << " Tris: " << triangles << std::endl;
 #endif//TRI_MODE
     }
-}
-
-Shader &ChunkManagement::getShader() {
-    return voxelShader;
 }
 
 bool ChunkManagement::chunkHasAllNeighborData(entt::registry &registry, Components::ChunkPosition &chunkPosition) {
@@ -1034,6 +1043,9 @@ void ChunkManagement::calculateBrightness(unsigned char *bVals, unsigned char *c
             }
         }
     }
+//    for (int i = 0; i < VOXELS_PER_CHUNK; ++i) {
+//        bVals[i] = 45;
+//    }
 }
 
 void ChunkManagement::generateMeshTris(volatile Components::ChunkStatusEnum* chunkStatus,
@@ -1481,3 +1493,8 @@ void ChunkManagement::generateMeshDumb(volatile Components::ChunkStatusEnum* chu
     neighborChunks = nullptr;
     chunksCurrentlyMeshing--;
 }
+
+float ChunkManagement::getFogDistance() {
+    return fogDistance;
+}
+

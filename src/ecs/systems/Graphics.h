@@ -9,13 +9,16 @@
 #include <vector>
 #include <entt/entt.hpp>
 #include "ecs/Components.h"
+#include "graphics/TextureManager.h"
+#include "graphics/Shader.h"
+#include "glm/glm.hpp"
 
 class Graphics {
 public:
     // TODO: destructor. disconnect listeners. delete vbo vao and other buffers
     Graphics(entt::registry &registry, std::random_device &rd);
     void update(entt::registry &registry);
-    void render(entt::registry &registry);
+    void render(entt::registry &registry, TextureManager &tm, int screenWidth, int screenHeight, float fogDistance, const glm::vec3 &skyColor);
 
 private:
     std::vector<float> generateBillboardQuad(float pitch, float yaw, float yOffset);
@@ -24,10 +27,11 @@ private:
 
 
     void setupBillboardYLock(); // vbo, vao setup
-    unsigned int vboBBYLock; // Bb = Billboard
+    Shader bbYLockShader;
     unsigned int vaoBBYLock;
-    unsigned int vboBBTexYLock;
-    unsigned int vboBBPosYLock;
+    unsigned int vboBBYLock; // Bb = Billboard
+    unsigned int vboBBTexPosScaleYLock;
+    unsigned int vboBBOffsetYLock;
     unsigned int instancesBBYLock;
 };
 

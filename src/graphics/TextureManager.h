@@ -7,6 +7,7 @@
 
 #include <string>
 #include <unordered_map>
+#include <vector>
 
 class TextureManager {
 public:
@@ -14,24 +15,31 @@ public:
     struct TextureInSpriteSheet {
         std::string name;
         unsigned int textureUnit;
-        unsigned int tx, ty, w, h;
+        float sx, sy, sw, sh;
     };
 
     struct TextureInArray {
         std::string name;
         unsigned int textureUnit;
-        unsigned int w, h;
         unsigned int index;
+    };
+
+    struct TextureDimensions {
+        unsigned int textureWidth, textureHeight;
     };
 
     void addSpriteSheet(std::string pathToImage, std::string pathToAtlas);
     void addSpriteArray(std::string pathToImage, std::string pathToAtlas);
+
+    TextureDimensions getTextureDimensions(int texture);
 
     TextureInSpriteSheet getTextureInfoSS(std::string textureName);
     TextureInArray getTextureInfoA(std::string textureName);
 
 private:
     std::unordered_map<std::string, TextureInSpriteSheet> nameToSSInfo;
+    std::vector<TextureDimensions> texDims;
+
     std::unordered_map<std::string, TextureInArray> nameToArrayInfo;
 
     unsigned int textureUnitsUsed;

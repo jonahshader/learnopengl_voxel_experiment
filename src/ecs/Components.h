@@ -91,9 +91,13 @@ public:
         bool grounded;
     };
 
-    struct CylinderCollider{
+    struct BoxCollider{
         double height;
         double radius;
+        glm::dvec3 lastValidPos;
+    };
+
+    struct PointCollider {
         glm::dvec3 lastValidPos;
     };
 
@@ -138,15 +142,19 @@ public:
     };
 
     struct GraphicBillboard {
-        unsigned char texture;
-        double width;
-        double height;
+        float sx; // from 0 to 1
+        float sy;
+        float sw; // from 0 to 1
+        float sh;
+        float width; // world size
+        float height;
         bool yLocked;
     };
 
     struct AIRandomWalking {
         double newDirectionPeriod;
         double newDirectionTimer;
+        double newDirectionVariance;
     };
 
     static std::string dvecToString(glm::dvec3 &vec);

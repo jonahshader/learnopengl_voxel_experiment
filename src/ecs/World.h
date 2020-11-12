@@ -29,7 +29,6 @@ public:
     void updateWindowSize(int width, int height);
     void updateMouse(double xpos, double ypos);
     void updateScroll(double xoffset, double yoffset);
-    Shader& getShader();
 
     const glm::vec3 &getSkyColor() const;
 

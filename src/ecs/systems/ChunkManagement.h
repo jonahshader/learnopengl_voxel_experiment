@@ -33,12 +33,14 @@ public:
     bool isChunkDataLoaded(entt::registry &registry, int xChunk, int yChunk, int zChunk);
     bool getVoxel(entt::registry &registry, int x, int y, int z, unsigned char &voxel); // returns true if success
     bool inSolidBlock(entt::registry &registry, glm::dvec3 &pos); // unloaded chunk is not solid
+    bool inSolidBlock(entt::registry &registry, glm::dvec3 &pos, int cx, int cy, int cz);
     void run(entt::registry& registry);
     void render(entt::registry& registry, TextureManager &tm, int screenWidth, int screenHeight, const glm::vec3 &skyColor);
     static std::string chunkPositionToKey(int xChunk, int yChunk, int zChunk);
     static double worldPosChunkPosDist(Components::ChunkPosition &chunkPos, Components::Position &worldPos);
     static double worldPosChunkPosDist(int xc, int yc, int zc, double x, double y, double z);
-    Shader &getShader();
+
+    float getFogDistance();
 
 private:
     const static int CHUNK_LOAD_RADIUS = 550 + CHUNK_SIZE; // this is in voxels, not chunks

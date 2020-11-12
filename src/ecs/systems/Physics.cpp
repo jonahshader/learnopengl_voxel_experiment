@@ -18,95 +18,7 @@ void Physics::updatePosition(entt::registry &registry, ChunkManagement &chunkMan
         pos.pos += vel.vel * dt;
     });
 
-    auto collisionTestView = registry.view<Components::Position, Components::ChunkPosition, Components::Velocity, Components::ChunkCollision, Components::CylinderCollider>();
-
-    // perform collision detection and handling
-    for (auto entity: collisionTestView) {
-        auto &pos = collisionTestView.get<Components::Position>(entity);
-        auto &chunkPos = collisionTestView.get<Components::ChunkPosition>(entity);
-        auto &vel = collisionTestView.get<Components::Velocity>(entity);
-        auto &collider = collisionTestView.get<Components::CylinderCollider>(entity);
-        auto &chunkCollision = collisionTestView.get<Components::ChunkCollision>(entity);
-
-        if (chunkManagement.isChunkDataLoaded(registry, chunkPos.x, chunkPos.y, chunkPos.z)) {
-            if (checkRectangularCollision(registry, chunkManagement, pos.pos, collider)) {
-                int xc = floor(collider.lastValidPos.x);
-                int yc = floor(collider.lastValidPos.y);
-                int zc = floor(collider.lastValidPos.z);
-                int xcNew = floor(pos.pos.x);
-                int ycNew = floor(pos.pos.y);
-                int zcNew = floor(pos.pos.z);
-
-
-                chunkCollision.grounded = (ycNew < yc);
-
-                glm::dvec3 posPreMod = pos.pos;
-                glm::dvec3 velPreMod = vel.vel;
-
-                // try fixing just x
-                pos.pos.x = collider.lastValidPos.x;
-                vel.vel.x = 0;
-                int correctionLevel = 0;
-                if (checkRectangularCollision(registry, chunkManagement, pos.pos, collider)) {
-                    pos.pos.x = posPreMod.x;
-                    vel.vel.x = velPreMod.x;
-                    pos.pos.y = collider.lastValidPos.y;
-                    vel.vel.y = 0;
-                    correctionLevel = 1;
-                    if (checkRectangularCollision(registry, chunkManagement, pos.pos, collider)) {
-                        pos.pos.y = posPreMod.y;
-                        vel.vel.y = velPreMod.y;
-                        pos.pos.z = collider.lastValidPos.z;
-                        vel.vel.z = 0;
-                        correctionLevel = 2;
-                        if (checkRectangularCollision(registry, chunkManagement, pos.pos, collider)) {
-                            pos.pos.x = collider.lastValidPos.x;
-                            vel.vel.x = 0;
-                            correctionLevel = 3;
-                            if (checkRectangularCollision(registry, chunkManagement, pos.pos, collider)) {
-                                pos.pos.z = posPreMod.z;
-                                vel.vel.z = velPreMod.z;
-                                pos.pos.y = collider.lastValidPos.y;
-                                vel.vel.y = 0;
-                                correctionLevel = 4;
-                                if (checkRectangularCollision(registry, chunkManagement, pos.pos, collider)) {
-                                    pos.pos.x = posPreMod.x;
-                                    vel.vel.x = velPreMod.x;
-                                    pos.pos.z = collider.lastValidPos.z;
-                                    vel.vel.z = 0;
-                                    correctionLevel = 5;
-                                    if (checkRectangularCollision(registry, chunkManagement, pos.pos, collider)) {
-                                        pos.pos = collider.lastValidPos;
-                                        vel.vel.x = 0;
-                                        vel.vel.y = 0;
-                                        vel.vel.z = 0;
-                                        correctionLevel = 6;
-                                        if (checkRectangularCollision(registry, chunkManagement, pos.pos, collider)) {
-                                            vel.vel = velPreMod;
-                                            pos.pos = posPreMod;
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-                bool yFixed = correctionLevel == 1 || correctionLevel == 4 || correctionLevel == 5 || correctionLevel == 6;
-                chunkCollision.grounded = chunkCollision.grounded && yFixed;
-                std::cout << "correction level " << correctionLevel << std::endl;
-            } else {
-                chunkCollision.grounded = false;
-            }
-        } else {
-            vel.vel = glm::dvec3(0);
-            pos.pos = collider.lastValidPos;
-            std::cout << "Resetting velocity, chunk not loaded" << std::endl;
-        }
-
-        collider.lastValidPos = pos.pos;
-
-        std::cout << "Grounded: " << (chunkCollision.grounded ? "True" : "False") << std::endl;
-    }
+    runBoxCollision(registry, chunkManagement, dt);
 
     // update chunk positions
     registry.view<Components::Position, Components::ChunkPosition>().each([](auto &pos, auto &cPos) {
@@ -196,74 +108,116 @@ void Physics::updateAccelFromVelocityTarget(entt::registry &registry, double dt)
                 acc.acc.z -= accel * sin(targetDirection);
             }
         }
-
-
-//        if (registry.has<Components::ChunkCollision>(entity)) {
-//            auto &chunkCollision = registry.get<Components::ChunkCollision>(entity);
-//            if (chunkCollision.grounded) {
-//                if (targetVel.targetVel.y > vel.vel.y) {
-//                    vel.vel.y += targetVel.targetVel.y;
-//                }
-//            }
-//        } else {
-//            if (targetVel.targetVel.y > vel.vel.y) {
-//                vel.vel.y += targetVel.targetVel.y;
-//            }
-//        }
-//        if (registry.has<Components::ChunkCollision>(entity)) {
-//            auto &chunkCollision = registry.get<Components::ChunkCollision>(entity);
-//            if (chunkCollision.grounded) {
-//                if (targetVel.targetVel.y > vel.vel.y) {
-////                    acc.acc.y += 10;
-//                    vel.vel.y += 4;
-//                } else {
-////                    acc.acc.y += -10;
-//                }
-//                if (targetVel.targetVel.x > vel.vel.x) {
-//                    acc.acc.x += 10;
-//                } else {
-//                    acc.acc.x += -10;
-//                }
-//
-//
-//                if (targetVel.targetVel.z > vel.vel.z) {
-//                    acc.acc.z += 10;
-//                } else {
-//                    acc.acc.z -= 10;
-//                }
-//            }
-//        } else {
-//            if (targetVel.targetVel.y > vel.vel.y) {
-//                acc.acc.y += 10;
-//            } else {
-//                acc.acc.y += -10;
-//            }
-//            if (targetVel.targetVel.x > vel.vel.x) {
-//                acc.acc.x += 10;
-//            } else {
-//                acc.acc.x += -10;
-//            }
-//            if (targetVel.targetVel.z > vel.vel.z) {
-//                acc.acc.z += 10;
-//            } else {
-//                acc.acc.z -= 10;
-//            }
-//        }
     }
 }
 
-bool Physics::checkRectangularCollision(entt::registry &registry, ChunkManagement &chunkManagement, glm::dvec3 &pos, Components::CylinderCollider &collider) {
+bool Physics::checkRectangularCollision(entt::registry &registry, ChunkManagement &chunkManagement, glm::dvec3 &pos, Components::BoxCollider &collider) {
     glm::dvec3 moddedPos;
-    for (int y = 0; y <= 2; ++y)
-    for (int x = -1; x <= 1; ++x) {
-        for (int z = -1; z <= 1; ++z) {
+
+    int testHeight = std::ceil(collider.height);
+    float testHeightInverse = 1.0f / testHeight;
+    for (int y = 0; y <= testHeight; ++y)
+    for (int x = -1; x <= 1; x += 2) {
+        for (int z = -1; z <= 1; z += 2) {
             moddedPos = pos;
             moddedPos.x += x * collider.radius;
             moddedPos.z += z * collider.radius;
-            moddedPos.y += y * collider.height * 0.5;
+            moddedPos.y += y * collider.height * testHeightInverse;
 
             if (chunkManagement.inSolidBlock(registry, moddedPos)) return true;
         }
     }
     return false;
+}
+
+void Physics::runBoxCollision(entt::registry &registry, ChunkManagement &chunkManagement, double dt) {
+    auto collisionTestView = registry.view<Components::Position, Components::ChunkPosition, Components::Velocity, Components::ChunkCollision, Components::BoxCollider>();
+
+    // perform collision detection and handling
+    for (auto entity: collisionTestView) {
+        auto &pos = collisionTestView.get<Components::Position>(entity);
+        auto &chunkPos = collisionTestView.get<Components::ChunkPosition>(entity);
+        auto &vel = collisionTestView.get<Components::Velocity>(entity);
+        auto &collider = collisionTestView.get<Components::BoxCollider>(entity);
+        auto &chunkCollision = collisionTestView.get<Components::ChunkCollision>(entity);
+
+        if (chunkManagement.isChunkDataLoaded(registry, chunkPos.x, chunkPos.y, chunkPos.z)) {
+            if (checkRectangularCollision(registry, chunkManagement, pos.pos, collider)) {
+                int xc;
+                int yc = floor(collider.lastValidPos.y);
+                int zc;
+                int xcNew;
+                int ycNew = floor(pos.pos.y);
+                int zcNew;
+
+
+                chunkCollision.grounded = (ycNew < yc);
+
+                glm::dvec3 posPreMod = pos.pos;
+                glm::dvec3 velPreMod = vel.vel;
+
+                // try fixing just x
+                pos.pos.x = collider.lastValidPos.x;
+                vel.vel.x = 0;
+                int correctionLevel = 0;
+                if (checkRectangularCollision(registry, chunkManagement, pos.pos, collider)) {
+                    pos.pos.x = posPreMod.x;
+                    vel.vel.x = velPreMod.x;
+                    pos.pos.y = collider.lastValidPos.y;
+                    vel.vel.y = 0;
+                    correctionLevel = 1;
+                    if (checkRectangularCollision(registry, chunkManagement, pos.pos, collider)) {
+                        pos.pos.y = posPreMod.y;
+                        vel.vel.y = velPreMod.y;
+                        pos.pos.z = collider.lastValidPos.z;
+                        vel.vel.z = 0;
+                        correctionLevel = 2;
+                        if (checkRectangularCollision(registry, chunkManagement, pos.pos, collider)) {
+                            pos.pos.x = collider.lastValidPos.x;
+                            vel.vel.x = 0;
+                            correctionLevel = 3;
+                            if (checkRectangularCollision(registry, chunkManagement, pos.pos, collider)) {
+                                pos.pos.z = posPreMod.z;
+                                vel.vel.z = velPreMod.z;
+                                pos.pos.y = collider.lastValidPos.y;
+                                vel.vel.y = 0;
+                                correctionLevel = 4;
+                                if (checkRectangularCollision(registry, chunkManagement, pos.pos, collider)) {
+                                    pos.pos.x = posPreMod.x;
+                                    vel.vel.x = velPreMod.x;
+                                    pos.pos.z = collider.lastValidPos.z;
+                                    vel.vel.z = 0;
+                                    correctionLevel = 5;
+                                    if (checkRectangularCollision(registry, chunkManagement, pos.pos, collider)) {
+                                        pos.pos = collider.lastValidPos;
+                                        vel.vel.x = 0;
+                                        vel.vel.y = 0;
+                                        vel.vel.z = 0;
+                                        correctionLevel = 6;
+                                        if (checkRectangularCollision(registry, chunkManagement, pos.pos, collider)) {
+                                            vel.vel = velPreMod;
+                                            pos.pos = posPreMod;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                bool yFixed = correctionLevel == 1 || correctionLevel == 4 || correctionLevel == 5 || correctionLevel == 6;
+                chunkCollision.grounded = chunkCollision.grounded && yFixed;
+            } else {
+                chunkCollision.grounded = false;
+            }
+        } else {
+            vel.vel = glm::dvec3(0);
+            pos.pos = collider.lastValidPos;
+        }
+
+        collider.lastValidPos = pos.pos;
+    }
+}
+
+void Physics::runPointCollision(entt::registry &registry, ChunkManagement &chunkManagement, double dt) {
+    //TODO:
 }

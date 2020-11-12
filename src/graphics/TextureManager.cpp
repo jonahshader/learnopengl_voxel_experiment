@@ -16,6 +16,7 @@
 
 TextureManager::TextureManager() :
         nameToSSInfo(),
+        texDims(),
         nameToArrayInfo(),
         textureUnitsUsed(0)
 {
@@ -36,6 +37,7 @@ void TextureManager::addSpriteSheet(std::string pathToImage, std::string pathToA
     // load texture
     int textureWidth, textureHeight, nChannels;
 
+    stbi_set_flip_vertically_on_load(false);
     unsigned char *textureData = stbi_load(pathToImage.c_str(), &textureWidth, &textureHeight, &nChannels, 0);
 
     unsigned int glTexture;
@@ -85,12 +87,12 @@ void TextureManager::addSpriteSheet(std::string pathToImage, std::string pathToA
                 info.name = line;
             } else if (line.find("xy") != std::string::npos) {
                 auto ints = CustomAlgorithms::stringToInts(line);
-                info.tx = ints[0];
-                info.ty = ints[1];
+                info.sx = ints[0];
+                info.sy = ints[1];
             } else if (line.find("size") != std::string::npos) {
                 auto ints = CustomAlgorithms::stringToInts(line);
-                info.w = ints[0];
-                info.h = ints[1];
+                info.sw = ints[0];
+                info.sh = ints[1];
             }
         }
     }
@@ -98,6 +100,10 @@ void TextureManager::addSpriteSheet(std::string pathToImage, std::string pathToA
     // add last texture
     nameToSSInfo[info.name] = info;
 
+    TextureDimensions dim;
+    dim.textureWidth = textureWidth;
+    dim.textureHeight = textureHeight;
+    texDims.emplace_back(dim);
     ++textureUnitsUsed;
 }
 
@@ -143,13 +149,11 @@ void TextureManager::addSpriteArray(std::string pathToImage, std::string pathToA
                 auto ints = CustomAlgorithms::stringToInts(line);
                 w = ints[0];
                 h = ints[1];
-                info.w = w;
-                info.h = h;
             } else if (line.c_str()[0] != ' ') {
                 if (!info.name.empty()) {
                     // save info to map
                     nameToArrayInfo[info.name] = info;
-                    std::cout << "added tex: " << line << std::endl;
+//                    std::cout << "added tex: " << line << std::endl;
                     ++numTextures;
                 }
                 info.name = line;
@@ -161,20 +165,21 @@ void TextureManager::addSpriteArray(std::string pathToImage, std::string pathToA
                 std::cout << "Bad line" << std::endl;
             }
         } else {
-            std::cout << "Unwanted line" << std::endl;
+//            std::cout << "Unwanted line" << std::endl;
         }
     }
 
     // save last texture
     ++numTextures;
     nameToArrayInfo[info.name] = info;
-    std::cout << "added tex: " << info.name << std::endl;
+//    std::cout << "added tex: " << info.name << std::endl;
 
     // load into gpu
     glActiveTexture(GL_TEXTURE0 + textureUnitsUsed);
     // load texture
     int textureWidth, textureHeight, nChannels;
 
+    stbi_set_flip_vertically_on_load(false);
     unsigned char *textureData = stbi_load(pathToImage.c_str(), &textureWidth, &textureHeight, &nChannels, 0);
 
     unsigned int glTexture;
@@ -186,8 +191,8 @@ void TextureManager::addSpriteArray(std::string pathToImage, std::string pathToA
     glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_S, GL_REPEAT);
     glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_T, GL_REPEAT);
 
-    std::cout << "Num textures" << numTextures << std::endl;
-    std::cout << "w: " << w << " h: " << h << std::endl;
+//    std::cout << "Num textures" << numTextures << std::endl;
+//    std::cout << "w: " << w << " h: " << h << std::endl;
     if (textureData) {
         glTexImage3D(GL_TEXTURE_2D_ARRAY, 0, GL_RGB, w, h, numTextures, 0, GL_RGB, GL_UNSIGNED_BYTE, textureData);
         glGenerateMipmap(GL_TEXTURE_2D_ARRAY);
@@ -198,6 +203,10 @@ void TextureManager::addSpriteArray(std::string pathToImage, std::string pathToA
 
     stbi_image_free(textureData);
 
+    TextureDimensions dims;
+    dims.textureWidth = textureWidth;
+    dims.textureHeight = textureHeight;
+    texDims.emplace_back(dims);
     ++textureUnitsUsed;
 }
 
@@ -207,4 +216,8 @@ TextureManager::TextureInSpriteSheet TextureManager::getTextureInfoSS(std::strin
 
 TextureManager::TextureInArray TextureManager::getTextureInfoA(std::string textureName) {
     return nameToArrayInfo[textureName];
+}
+
+TextureManager::TextureDimensions TextureManager::getTextureDimensions(int texture) {
+    return texDims[texture];
 }

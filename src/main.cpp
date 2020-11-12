@@ -96,9 +96,6 @@ int main() {
     World world("shaders/voxel/voxel_shader.vert", "shaders/voxel/voxel_shader.frag",
                 "shaders/voxel_tris/voxel_shader.vert", "shaders/voxel_tris/voxel_shader.frag");
 
-    // connect texture to shader program
-    world.getShader().use();
-    world.getShader().setInt("sampler", 0);
 
     // render loop
     double pTime = glfwGetTime();
