@@ -19,6 +19,7 @@ private:
     static void updateVelocity(entt::registry &registry, double dt);
     static void updateAccelFromVelocityTarget(entt::registry &registry, double dt);
     static bool checkRectangularCollision(entt::registry &registry, ChunkManagement &chunkManagement, glm::dvec3 &pos, Components::BoxCollider &collider);
+    static bool checkPointCollision(entt::registry &registry, ChunkManagement &chunkManagement, glm::dvec3 &pos);
 
     static void runPointCollision(entt::registry &registry, ChunkManagement &chunkManagement, double dt);
     static void runBoxCollision(entt::registry &registry, ChunkManagement &chunkManagement, double dt);

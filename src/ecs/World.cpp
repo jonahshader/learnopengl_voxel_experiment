@@ -9,18 +9,18 @@
 
 World::World(const char* vertexPathInst, const char* fragmentPathInst,
              const char* vertexPathTri, const char* fragmentPathTri) :
-rd(),
+seeder(0),
 registry(),
-chunkManagement(vertexPathInst, fragmentPathInst, vertexPathTri, fragmentPathTri, rd),
-ai(rd),
-graphics(registry, rd),
+chunkManagement(vertexPathInst, fragmentPathInst, vertexPathTri, fragmentPathTri, seeder),
+ai(seeder),
+graphics(registry),
 textureManager(),
 pMouseX(0.0),
 pMouseY(0.0),
 firstMouse(true),
 screenWidth(800),
 screenHeight(600),
-skyColor(0.5f, 0.45f, 0.85f)
+skyColor(0.5f, 0.45f, 0.95f)
 {
     // load textures
     textureManager.addSpriteArray("textures/spritesheet.png", "textures/spritesheet.atlas");
@@ -44,9 +44,9 @@ skyColor(0.5f, 0.45f, 0.85f)
 
     // make 100 billboards
     // make random num gen distribution
-    std::uniform_real_distribution<double> bbDist(-1024, 1024);
+    std::uniform_real_distribution<double> bbDist(-32, 32);
     std::uniform_real_distribution<double> zeroOneDist(0.0, 1.0);
-    std::mt19937_64 randomEngine(rd());
+    std::mt19937_64 randomEngine(seeder());
     auto spriteInfo = textureManager.getTextureInfoSS("person");
     auto textureDim = textureManager.getTextureDimensions(spriteInfo.textureUnit);
 
@@ -56,9 +56,9 @@ skyColor(0.5f, 0.45f, 0.85f)
     float sh = -(spriteInfo.sh / textureDim.textureHeight);
 
     std::cout << spriteInfo.name << " " << spriteInfo.sw << " " << spriteInfo.sh << " " << spriteInfo.sx << " " << spriteInfo.sy << std::endl;
-    for (int i = 0; i < 1000; ++i) {
+    for (int i = 0; i < 0; ++i) {
         entt::entity bb = registry.create();
-        float scale = zeroOneDist(randomEngine);
+        float scale = zeroOneDist(randomEngine) * 0.9f + 0.1f;
         registry.emplace<Components::GraphicBillboard>(bb, sx, sy, sw, sh, scale, scale * 2, true);
 
         double x = bbDist(randomEngine), y = bbDist(randomEngine) * 0.0625 + 128.0, z = bbDist(randomEngine);
@@ -71,7 +71,8 @@ skyColor(0.5f, 0.45f, 0.85f)
         registry.emplace<Components::ChunkPosition>(bb, 0, 0, 0);
         registry.emplace<Components::JumpVelocity>(bb, 7.0);
         registry.emplace<Components::TargetVelocity>(bb, glm::dvec3(0.0));
-        registry.emplace<Components::BoxCollider>(bb, 0.98, 0.4, glm::dvec3(x, y, z));
+//        registry.emplace<Components::BoxCollider>(bb, 0.98, 0.4, glm::dvec3(x, y, z));
+        registry.emplace<Components::PointCollider>(bb, glm::dvec3(x, y, z));
         registry.emplace<Components::AIRandomWalking>(bb, 1.0f, 1.0f, 1.0f);
 
 //        struct GraphicBillboard {

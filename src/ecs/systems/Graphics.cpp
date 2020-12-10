@@ -12,8 +12,7 @@
 #include <entt/entt.hpp>
 #include "ecs/Components.h"
 
-Graphics::Graphics(entt::registry &registry, std::random_device &rd) :
-rd(rd),
+Graphics::Graphics(entt::registry &registry) :
 bbYLockShader("shaders/billboard/billboard.vert", "shaders/billboard/billboard.frag")
 {
     setupBillboardYLock();
@@ -179,11 +178,13 @@ void Graphics::updateBillboardsYLock(entt::registry &registry) {
         glBufferData(GL_ARRAY_BUFFER, sizeof(float) * quadWithTex.size(), quadWithTex.data(), GL_STATIC_DRAW);
     }
 
+    auto bbView = registry.view<Components::GraphicBillboard, Components::Position>();
+
     // build offset, tex buffers
     std::vector<float> offsets;
     std::vector<float> texPosSizeSpriteDims;
 
-    auto bbView = registry.view<Components::GraphicBillboard, Components::Position>();
+
     for (const auto entity: bbView) {
         auto [bb, pos] = bbView.get<Components::GraphicBillboard, Components::Position>(entity);
         if (bb.yLocked) {
@@ -205,6 +206,7 @@ void Graphics::updateBillboardsYLock(entt::registry &registry) {
     glBufferData(GL_ARRAY_BUFFER, sizeof(float) * offsets.size(), offsets.data(), GL_STATIC_DRAW);
     glBindBuffer(GL_ARRAY_BUFFER, vboBBTexPosScaleYLock);
     glBufferData(GL_ARRAY_BUFFER, sizeof(float) * texPosSizeSpriteDims.size(), texPosSizeSpriteDims.data(), GL_STATIC_DRAW);
+
 }
 
 void Graphics::render(entt::registry &registry, TextureManager &tm, int screenWidth, int screenHeight, float fogDistance, const glm::vec3 &skyColor) {

@@ -10,13 +10,12 @@
 
 class AI {
 public:
-    AI(std::random_device &randomDevice);
+    AI(std::mt19937_64 &seeder);
     void update(entt::registry &registry, double dt);
 
 private:
     void updateRandomWalkingAI(entt::registry &registry, double dt);
 
-    std::random_device &randomDevice;
     std::mt19937_64 randEngine;
     std::uniform_real_distribution<double> real01Dist;
 };

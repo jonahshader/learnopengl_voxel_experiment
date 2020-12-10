@@ -19,6 +19,7 @@ void Physics::updatePosition(entt::registry &registry, ChunkManagement &chunkMan
     });
 
     runBoxCollision(registry, chunkManagement, dt);
+    runPointCollision(registry, chunkManagement, dt);
 
     // update chunk positions
     registry.view<Components::Position, Components::ChunkPosition>().each([](auto &pos, auto &cPos) {
@@ -130,6 +131,11 @@ bool Physics::checkRectangularCollision(entt::registry &registry, ChunkManagemen
     return false;
 }
 
+bool Physics::checkPointCollision(entt::registry &registry, ChunkManagement &chunkManagement, glm::dvec3 &pos) {
+    return chunkManagement.inSolidBlock(registry, pos);
+}
+
+
 void Physics::runBoxCollision(entt::registry &registry, ChunkManagement &chunkManagement, double dt) {
     auto collisionTestView = registry.view<Components::Position, Components::ChunkPosition, Components::Velocity, Components::ChunkCollision, Components::BoxCollider>();
 
@@ -219,5 +225,97 @@ void Physics::runBoxCollision(entt::registry &registry, ChunkManagement &chunkMa
 }
 
 void Physics::runPointCollision(entt::registry &registry, ChunkManagement &chunkManagement, double dt) {
-    //TODO:
+    auto collisionTestView = registry.view<Components::Position, Components::ChunkPosition, Components::Velocity, Components::ChunkCollision, Components::PointCollider>();
+
+    // perform collision detection and handling
+    for (auto entity: collisionTestView) {
+        auto &pos = collisionTestView.get<Components::Position>(entity);
+        auto &chunkPos = collisionTestView.get<Components::ChunkPosition>(entity);
+        auto &vel = collisionTestView.get<Components::Velocity>(entity);
+        auto &collider = collisionTestView.get<Components::PointCollider>(entity);
+        auto &chunkCollision = collisionTestView.get<Components::ChunkCollision>(entity);
+
+        if (chunkManagement.isChunkDataLoaded(registry, chunkPos.x, chunkPos.y, chunkPos.z)) {
+            if (checkPointCollision(registry, chunkManagement, pos.pos)) {
+                int xc = floor(collider.lastValidPos.x);
+                int yc = floor(collider.lastValidPos.y);
+                int zc = floor(collider.lastValidPos.z);
+                int xcNew = floor(pos.pos.x);
+                int ycNew = floor(pos.pos.y);
+                int zcNew = floor(pos.pos.z);
+
+
+                chunkCollision.grounded = (ycNew < yc);
+
+                glm::dvec3 posPreMod = pos.pos;
+                glm::dvec3 velPreMod = vel.vel;
+
+                // try fixing just x
+//                pos.pos.x = collider.lastValidPos.x;
+//                vel.vel.x = 0;
+//                int correctionLevel = 0;
+//                if (checkPointCollision(registry, chunkManagement, pos.pos)) {
+//                    pos.pos.x = posPreMod.x;
+//                    vel.vel.x = velPreMod.x;
+//                    pos.pos.y = collider.lastValidPos.y;
+//                    vel.vel.y = 0;
+//                    correctionLevel = 1;
+//                    if (checkPointCollision(registry, chunkManagement, pos.pos)) {
+//                        pos.pos.y = posPreMod.y;
+//                        vel.vel.y = velPreMod.y;
+//                        pos.pos.z = collider.lastValidPos.z;
+//                        vel.vel.z = 0;
+//                        correctionLevel = 2;
+//                        if (checkPointCollision(registry, chunkManagement, pos.pos)) {
+//                            pos.pos.x = collider.lastValidPos.x;
+//                            vel.vel.x = 0;
+//                            correctionLevel = 3;
+//                            if (checkPointCollision(registry, chunkManagement, pos.pos)) {
+//                                vel.vel = velPreMod;
+//                                pos.pos = posPreMod;
+//                            }
+//                        }
+//                    }
+//                }
+
+                bool yFixed = false;
+                double fix = 0.01;
+                if (checkPointCollision(registry, chunkManagement, pos.pos)) {
+                    if (xcNew > xc) {
+                        pos.pos.x = collider.lastValidPos.x;
+                        vel.vel.x = 0;
+                    } else if (xcNew < xc) {
+                        pos.pos.x = collider.lastValidPos.x;
+                        vel.vel.x = 0;
+                    }
+                    if (ycNew > yc) {
+                        pos.pos.y = collider.lastValidPos.y;
+                        vel.vel.y = 0;
+                        yFixed = true;
+                    } else if (ycNew < yc) {
+                        pos.pos.y = collider.lastValidPos.y;
+                        vel.vel.y = 0;
+                        yFixed = true;
+                    }
+                    if (zcNew > zc) {
+                        pos.pos.z = collider.lastValidPos.z;
+                        vel.vel.z = 0;
+                    } else if (zcNew < zc) {
+                        pos.pos.z = collider.lastValidPos.z;
+                        vel.vel.z = 0;
+                    }
+                }
+//                bool yFixed = correctionLevel == 1 || correctionLevel == 4 || correctionLevel == 5 || correctionLevel == 6;
+                chunkCollision.grounded = chunkCollision.grounded && yFixed;
+            } else {
+                chunkCollision.grounded = false;
+            }
+        } else {
+            vel.vel = glm::dvec3(0);
+            pos.pos = collider.lastValidPos;
+        }
+
+        collider.lastValidPos = pos.pos;
+    }
 }
+

@@ -24,10 +24,9 @@ Components::Position ChunkManagement::chunkComparePos = {glm::dvec3(0.0)};
 
 ChunkManagement::ChunkManagement(const char* vertexPathInstVer, const char* fragmentPathInstVer,
                                  const char* vertexPathTriVer, const char* fragmentPathTriVer,
-                                 std::random_device &rd) :
+                                 std::mt19937_64 &seeder) :
         chunkKeyToChunkEntity(),
         chunks(),
-        rd(rd),
         pool(MAX_CONCURRENT_GENERATES + 1 + MAX_CONCURRENT_MESH_GENS),
 //        chunkGenThreadPool(),
         voxelShader(vertexPathInstVer, fragmentPathInstVer),
@@ -47,7 +46,7 @@ ChunkManagement::ChunkManagement(const char* vertexPathInstVer, const char* frag
         chunksCurrentlyMeshing(0),
         cubeVbo(0)
 {
-    std::mt19937 mt(time(0));
+    std::mt19937 mt(seeder());
     std::uniform_int_distribution intDist;
 
     mainNoise.SetNoiseType(FastNoise::SimplexFractal);
@@ -268,7 +267,6 @@ void ChunkManagement::run(entt::registry &registry) {
             }
 
             if (*chunkStatus.markedForRemoval) {
-//                std::cout << "stat of chunk marked for removal: " << chunkStatus.status << std::endl;
                 switch (*chunkStatus.status) {
                     case Components::ChunkStatusEnum::NEW:
                     case Components::ChunkStatusEnum::GENERATED_OR_LOADED:
@@ -288,32 +286,8 @@ void ChunkManagement::run(entt::registry &registry) {
                             registry.emplace<Components::ChunkData>(chunkEntity, std::vector<unsigned char>(VOXELS_PER_CHUNK)); // add chunk data
                             *chunkStatus.status = Components::ChunkStatusEnum::GENERATING_OR_LOADING;
                             auto &chunkData = registry.get<Components::ChunkData>(chunkEntity);
-
-//                            double startTime = glfwGetTime();
-
                             chunksCurrentlyGenerating++;
-//                            std::thread* testThread = new std::thread(&ChunkManagement::generateChunk, this, chunkStatus.status, chunkPosition.x, chunkPosition.y, chunkPosition.z, chunkData.data);
-
-
-//                            auto future = std::async(&ChunkManagement::generateChunk, this, chunkStatus.status, chunkPosition.x, chunkPosition.y, chunkPosition.z, chunkData.data);
-
-//                            new std::thread(&ChunkManagement::generateChunk, this, chunkStatus.status, chunkPosition.x, chunkPosition.y, chunkPosition.z, chunkData.data);
-
-//                            int policy;
-//                            sched_param sch;
-//                            pthread_getschedparam(testThread->native_handle(), &policy, &sch);
-//                            sch.sched_priority = 5;
-//                            testThread->detach();
-
-//                            pool.enqueue([this, chunkStatus.status, chunkPosition.x, chunkPosition.y, chunkPosition.z, chunkData.data]{
-//                                generateChunk(chunkStatus.status, chunkPosition.x, chunkPosition.y, chunkPosition.z, chunkData.data);
-//                            });
                             pool.enqueue(&ChunkManagement::generateChunk, this, chunkStatus.status, chunkPosition.x, chunkPosition.y, chunkPosition.z, chunkData.data.data());
-
-
-//                            generateChunk(chunkStatus, chunkPosition, chunkData);
-//                            double endTime = glfwGetTime();
-//                            std::cout << "Gen time: " << (endTime - startTime) << std::endl;
                             ++generates;
                         }
                         break;
@@ -550,6 +524,9 @@ void ChunkManagement::generateChunk(volatile Components::ChunkStatusEnum* chunkS
         float c = caveNoiseC.GetNoise(x, y, z);
         bool isCave = std::abs(c) > 0.15;
 
+//        if (((x == 0) || (z == 0)) && (((y % 4)/3) == 0)) {
+//            chunkData[i] = 0;
+//        } else
         if (!isCave) {
             float noiseOut = mainNoiseVal * (1-smoothHillSelectVal) + smoothHillVal * smoothHillSelectVal;
 //            if (noiseOut > 0) {

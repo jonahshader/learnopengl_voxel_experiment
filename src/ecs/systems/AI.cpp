@@ -6,9 +6,8 @@
 #include <ecs/Components.h>
 #include <other/Constants.h>
 
-AI::AI(std::random_device &randomDevice) :
-        randomDevice(randomDevice),
-        randEngine(randomDevice()),
+AI::AI(std::mt19937_64 &seeder) :
+        randEngine(seeder()),
         real01Dist(0.0, 1.0)
 {
 }
@@ -32,7 +31,7 @@ void AI::updateRandomWalkingAI(entt::registry &registry, double dt) {
                 speed = registry.get<Components::TravelMaxSpeed>(entity).maxSpeed;
             }
 
-            double dir = real01Dist(randomDevice) * M_PI * 2;
+            double dir = real01Dist(randEngine) * M_PI * 2;
             if (registry.has<Components::TargetVelocity>(entity)) {
                 auto &targetVel = registry.get<Components::TargetVelocity>(entity);
                 targetVel.targetVel.x = cos(dir) * speed;

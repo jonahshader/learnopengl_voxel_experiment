@@ -16,14 +16,13 @@
 class Graphics {
 public:
     // TODO: destructor. disconnect listeners. delete vbo vao and other buffers
-    Graphics(entt::registry &registry, std::random_device &rd);
+    Graphics(entt::registry &registry);
     void update(entt::registry &registry);
     void render(entt::registry &registry, TextureManager &tm, int screenWidth, int screenHeight, float fogDistance, const glm::vec3 &skyColor);
 
 private:
     std::vector<float> generateBillboardQuad(float pitch, float yaw, float yOffset);
     void updateBillboardsYLock(entt::registry &registry);
-    std::random_device &rd;
 
 
     void setupBillboardYLock(); // vbo, vao setup

@@ -33,7 +33,7 @@ public:
     const glm::vec3 &getSkyColor() const;
 
 private:
-    std::random_device rd;
+    std::mt19937_64 seeder;
     entt::registry registry;
 
     ChunkManagement chunkManagement;

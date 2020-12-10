@@ -59,7 +59,7 @@ int main() {
 //    glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
 //    glEnable(GL_DEBUG_OUTPUT);
 //    glEnable(GL_MULTISAMPLE);
-    glfwSwapInterval(1);
+    glfwSwapInterval(0); // 1 is vsync
 
 
 //    // set texture unit

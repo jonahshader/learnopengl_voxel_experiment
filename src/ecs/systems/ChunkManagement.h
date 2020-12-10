@@ -27,7 +27,7 @@ class ChunkManagement {
 public:
     ChunkManagement(const char* vertexPathInstVer, const char* fragmentPathInstVer,
                     const char* vertexPathTriVer, const char* fragmentPathTriVer,
-                    std::random_device &rd);
+                    std::mt19937_64 &seeder);
 
     entt::entity* getChunk(int xChunk, int yChunk, int zChunk); // returns nullptr if the chunk was not found
     bool isChunkDataLoaded(entt::registry &registry, int xChunk, int yChunk, int zChunk);
@@ -43,8 +43,8 @@ public:
     float getFogDistance();
 
 private:
-    const static int CHUNK_LOAD_RADIUS = 550 + CHUNK_SIZE; // this is in voxels, not chunks
-    const static int CHUNK_UNLOAD_RADIUS = 550 + CHUNK_SIZE + CHUNK_SIZE; // this is in voxels, not chunks
+    const static int CHUNK_LOAD_RADIUS = 250 + CHUNK_SIZE; // this is in voxels, not chunks
+    const static int CHUNK_UNLOAD_RADIUS = CHUNK_LOAD_RADIUS + CHUNK_SIZE; // this is in voxels, not chunks
     const static int MAX_MESH_BUFFERS_PER_FRAME = 1;
     const static int MAX_CONCURRENT_MESH_GENS = 5;
     const static int MAX_GENERATES_PER_FRAME = 1;
@@ -56,8 +56,6 @@ private:
 
     std::unordered_map<std::string, entt::entity> chunkKeyToChunkEntity;
     std::vector<entt::entity> chunks;
-
-    std::random_device &rd;
 
     ThreadPool pool;
 
