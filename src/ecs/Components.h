@@ -12,6 +12,7 @@
 #include <entt/entt.hpp>
 
 #include <other/Constants.h>
+#include <other/DataTypes.h>
 
 
 class Components {
@@ -23,17 +24,17 @@ public:
         // hashtable with voxel xyz as key will yield the actual value
         // of the voxel. this is only for when there is greater than
         // 256 types of blocks.
-//        unsigned char data[CHUNK_SIZE * CHUNK_SIZE * CHUNK_SIZE];
-        std::vector<unsigned char> data;
+//        blockid data[CHUNK_SIZE * CHUNK_SIZE * CHUNK_SIZE];
+        std::vector<blockid> data;
     };
 
-    static unsigned char chunkDataGet(unsigned char* data, int x, int y, int z);
-    static unsigned char chunkDataGet(std::vector<unsigned char*>* chunks, int x, int y, int z);
-//    static unsigned char chunkDataGetOptimizeChoose(ChunkData &data, ChunkData* chunks[], bool optimize, int x, int y, int z);
-    static unsigned char chunkDataGetAirBounds(unsigned char* data, int x, int y, int z);
-    static void chunkDataSet(unsigned char* data, unsigned char value, int x, int y, int z);
-    static bool voxelIsTouchingAirAirBounds(unsigned char* data, int x, int y, int z);
-    static bool voxelIsTouchingAirWithNeighbors(std::vector<unsigned char*>* chunks, int x, int y, int z);
+    static blockid chunkDataGet(blockid* data, int x, int y, int z);
+    static blockid chunkDataGet(std::vector<blockid*>* chunks, int x, int y, int z);
+//    static blockid chunkDataGetOptimizeChoose(ChunkData &data, ChunkData* chunks[], bool optimize, int x, int y, int z);
+    static blockid chunkDataGetAirBounds(blockid* data, int x, int y, int z);
+    static void chunkDataSet(blockid* data, blockid value, int x, int y, int z);
+    static bool voxelIsTouchingAirAirBounds(blockid* data, int x, int y, int z);
+    static bool voxelIsTouchingAirWithNeighbors(std::vector<blockid*>* chunks, int x, int y, int z);
 //    static bool voxelIsTouchingAirOptimizeChoose(ChunkData &data, ChunkData* chunks[], bool optimize, int x, int y, int z);
 
 
@@ -119,6 +120,10 @@ public:
     };
 
     struct PlayerControl {};
+
+    struct Dig {
+        bool isDigging;
+    };
 
     struct CameraAttach {
         double fov;

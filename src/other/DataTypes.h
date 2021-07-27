@@ -8,10 +8,12 @@
 /*
  * this is for structs and enums that are not ecs components
  */
+using blockid = unsigned char;
 
 class DataTypes {
 public:
     DataTypes() = delete;
+
 
     enum Direction {
         X_PLUS,
@@ -37,6 +39,8 @@ public:
     static DirectionComponents directionToComponents(Direction &dir);
 
 };
+
+
 
 
 #endif //LEARNOPENGL_VOXEL_EXPERIMENT_DATATYPES_H

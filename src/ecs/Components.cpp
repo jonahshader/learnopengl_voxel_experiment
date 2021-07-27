@@ -4,11 +4,11 @@
 
 #include "Components.h"
 
-unsigned char Components::chunkDataGet(unsigned char* data, int x, int y, int z) {
+blockid Components::chunkDataGet(blockid* data, int x, int y, int z) {
     return (data)[z * CHUNK_SIZE * CHUNK_SIZE + y * CHUNK_SIZE + x];
 }
 
-unsigned char Components::chunkDataGet(std::vector<unsigned char*>* chunks, int x, int y, int z) {
+blockid Components::chunkDataGet(std::vector<blockid*>* chunks, int x, int y, int z) {
 //    int cx = std::floor(x / (float) CHUNK_SIZE);
 //    int cy = std::floor(y / (float) CHUNK_SIZE);
 //    int cz = std::floor(z / (float) CHUNK_SIZE);
@@ -25,11 +25,11 @@ unsigned char Components::chunkDataGet(std::vector<unsigned char*>* chunks, int 
 }
 
 
-void Components::chunkDataSet(unsigned char* data, unsigned char value, int x, int y, int z) {
+void Components::chunkDataSet(blockid* data, blockid value, int x, int y, int z) {
     (data)[z * CHUNK_SIZE * CHUNK_SIZE + y * CHUNK_SIZE + x] = value;
 }
 
-unsigned char Components::chunkDataGetAirBounds(unsigned char* data, int x, int y, int z) {
+blockid Components::chunkDataGetAirBounds(blockid* data, int x, int y, int z) {
     if (x < 0 || x >= CHUNK_SIZE || y < 0 || y >= CHUNK_SIZE || z < 0 || z >= CHUNK_SIZE) {
         return 0;
     } else {
@@ -41,7 +41,7 @@ std::string Components::dvecToString(glm::dvec3 &vec) {
     return "x: " + std::to_string(vec.x) + " y: " + std::to_string(vec.y) + " z: " + std::to_string(vec.z);
 }
 
-bool Components::voxelIsTouchingAirAirBounds(unsigned char* data, int x, int y, int z) {
+bool Components::voxelIsTouchingAirAirBounds(blockid* data, int x, int y, int z) {
     return
         chunkDataGetAirBounds(data, x + 1, y + 0, z + 0) == 0 ||
         chunkDataGetAirBounds(data, x - 1, y + 0, z + 0) == 0 ||
@@ -51,7 +51,7 @@ bool Components::voxelIsTouchingAirAirBounds(unsigned char* data, int x, int y, 
         chunkDataGetAirBounds(data, x + 0, y + 0, z - 1) == 0;
 }
 
-bool Components::voxelIsTouchingAirWithNeighbors(std::vector<unsigned char*>* chunks, int x, int y, int z) {
+bool Components::voxelIsTouchingAirWithNeighbors(std::vector<blockid*>* chunks, int x, int y, int z) {
     return
         chunkDataGet(chunks, x + 1, y + 0, z + 0) == 0 ||
         chunkDataGet(chunks, x - 1, y + 0, z + 0) == 0 ||
@@ -69,7 +69,7 @@ bool Components::voxelIsTouchingAirWithNeighbors(std::vector<unsigned char*>* ch
 //    }
 //}
 //
-//unsigned char Components::chunkDataGetOptimizeChoose(ChunkData &data, ChunkData* chunks[], bool optimize, int x, int y, int z) {
+//blockid Components::chunkDataGetOptimizeChoose(ChunkData &data, ChunkData* chunks[], bool optimize, int x, int y, int z) {
 //    if (optimize) {
 //        return chunkDataGet(data, x, y, z);
 //    } else {

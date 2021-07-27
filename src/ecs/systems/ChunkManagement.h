@@ -21,8 +21,6 @@
 #include <glm/glm.hpp>
 #include <external/ThreadPool.h>
 
-
-
 class ChunkManagement {
 public:
     ChunkManagement(const char* vertexPathInstVer, const char* fragmentPathInstVer,
@@ -31,7 +29,7 @@ public:
 
     entt::entity* getChunk(int xChunk, int yChunk, int zChunk); // returns nullptr if the chunk was not found
     bool isChunkDataLoaded(entt::registry &registry, int xChunk, int yChunk, int zChunk);
-    bool getVoxel(entt::registry &registry, int x, int y, int z, unsigned char &voxel); // returns true if success
+    bool getVoxel(entt::registry &registry, int x, int y, int z, blockid &voxel); // returns true if success
     bool inSolidBlock(entt::registry &registry, glm::dvec3 &pos); // unloaded chunk is not solid
     bool inSolidBlock(entt::registry &registry, glm::dvec3 &pos, int cx, int cy, int cz);
     void run(entt::registry& registry);
@@ -130,25 +128,21 @@ private:
     static bool chunkCompareFun(entt::entity chunk1, entt::entity chunk2);
     // assumes chunk entity already has ChunkData, ChunkStatus,
     void generateChunk(volatile Components::ChunkStatusEnum* chunkStatus, int xChunk, int yChunk, int zChunk,
-                       unsigned char* chunkData);
+                       blockid* chunkData);
 
     // assumes chunk entity already has ChunkData, ChunkStatus, ChunkMesh
-    void generateMesh(volatile Components::ChunkStatusEnum* chunkStatus,
-                      unsigned char* chunkData, std::vector<unsigned char>* offsets,
-                      std::vector<unsigned char>* dims, std::vector<unsigned char>* textures,
-                      std::vector<unsigned char>* brightnesses, std::vector<unsigned char*>* neighborChunks);
+    void generateMeshInstances(volatile Components::ChunkStatusEnum* chunkStatus,
+                               blockid* chunkData, std::vector<unsigned char>* offsets,
+                               std::vector<unsigned char>* dims, std::vector<unsigned char>* textures,
+                               std::vector<unsigned char>* brightnesses, std::vector<blockid*>* neighborChunks);
 
-    void generateMeshTris(volatile Components::ChunkStatusEnum* chunkStatus,
-                          unsigned char* chunkData, std::vector<unsigned char>* tris,
-                          std::vector<unsigned char*>* neighborChunks);
+    void generateMeshInstTris(volatile Components::ChunkStatusEnum* chunkStatus,
+                          blockid* chunkData, std::vector<unsigned char>* tris,
+                          std::vector<blockid*>* neighborChunks);
 
     void generateMeshGreedy(volatile Components::ChunkStatusEnum* chunkStatus,
-                            unsigned char* chunkData, std::vector<unsigned char>* tris,
-                            std::vector<unsigned char*>* neighborChunks);
-
-    void generateMeshDumb(volatile Components::ChunkStatusEnum* chunkStatus,
-                          unsigned char* chunkData, std::vector<unsigned char>* tris,
-                          std::vector<unsigned char*>* neighborChunks);
+                            blockid* chunkData, std::vector<unsigned char>* tris,
+                            std::vector<blockid*>* neighborChunks);
 
     bool chunkHasAllNeighborData(entt::registry &registry, Components::ChunkPosition &chunkPosition);
 
@@ -165,8 +159,8 @@ private:
                     unsigned char texture, unsigned char xTex, unsigned char yTex,
                     unsigned char brightness, unsigned char normal);
 
-    void fixGrass(unsigned char* chunkData, std::vector<unsigned char*>* neighborChunks);
-    void calculateBrightness(unsigned char* bVals, unsigned char* chunkData, std::vector<unsigned char*>* neighborChunks);
+    void fixGrass(blockid* chunkData, std::vector<blockid*>* neighborChunks);
+    void calculateBrightness(unsigned char* bVals, blockid* chunkData, std::vector<blockid*>* neighborChunks);
 };
 
 
