@@ -1,0 +1,16 @@
+
+spritesheet.png
+format: RGBA8888
+size: 16, 16
+grass_top
+  index: 0
+grass_side
+  index: 1
+dirt
+  index: 2
+stone
+  index: 3
+cliff
+  index: 4
+water
+  index: 5
