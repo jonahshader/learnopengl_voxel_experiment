@@ -7,7 +7,7 @@
 
 #include <entt/entt.hpp>
 #include <other/Constants.h>
-#include <ecs/systems/ChunkManagement.h>
+#include <ecs/systems/terrain/ChunkManagement.h>
 
 class Physics {
 public:

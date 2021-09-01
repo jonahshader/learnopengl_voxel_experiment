@@ -4,19 +4,10 @@
 
 #include "ChunkManagement.h"
 
-#include <glad/glad.h>
 #include <GLFW/glfw3.h>
-#include <glm/glm.hpp>
-#include <glm/vec3.hpp>
-#include <glm/mat4x4.hpp>
 #include <glm/gtc/matrix_transform.hpp>
-#include <ecs/Components.h>
-#include <graphics/TextureManager.h>
 #include <thread>
-#include <pthread.h>
-#include <chrono>
 #include <iostream>
-#include <future>
 #include <random>
 
 entt::registry* ChunkManagement::chunkCompareRegistry = nullptr;
@@ -28,7 +19,6 @@ ChunkManagement::ChunkManagement(const char* vertexPathInstVer, const char* frag
         chunkKeyToChunkEntity(),
         chunks(),
         pool(MAX_CONCURRENT_GENERATES + 1 + MAX_CONCURRENT_MESH_GENS),
-//        chunkGenThreadPool(),
         voxelShader(vertexPathInstVer, fragmentPathInstVer),
         voxelShaderTris(vertexPathTriVer, fragmentPathTriVer),
         mainNoise(),
@@ -741,7 +731,7 @@ void ChunkManagement::genVboVaoAndBuffer(entt::registry& registry, entt::entity 
     glBindBuffer(GL_ARRAY_BUFFER, gl.texturesVbo);
 
     for (unsigned int i = 0; i < 6; i++) {
-        glVertexAttribIPointer(5 + i, 1, GL_UNSIGNED_BYTE, 6 * sizeof(unsigned char), (void*)i);
+        glVertexAttribIPointer(5 + i, 1, GL_UNSIGNED_BYTE, 6 * sizeof(unsigned char), (void*)(size_t)i);
         glEnableVertexAttribArray(5 + i );
         glVertexAttribDivisor(5 + i, 1);
     }

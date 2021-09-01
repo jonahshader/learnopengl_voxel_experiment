@@ -5,7 +5,7 @@
 #ifndef LEARNOPENGL_VOXEL_EXPERIMENT_WORLD_H
 #define LEARNOPENGL_VOXEL_EXPERIMENT_WORLD_H
 
-#include <ecs/systems/ChunkManagement.h>
+#include <ecs/systems/terrain/ChunkManagement.h>
 #include <ecs/systems/AI.h>
 #include <ecs/systems/Physics.h>
 #include <ecs/systems/PlayerControl.h>

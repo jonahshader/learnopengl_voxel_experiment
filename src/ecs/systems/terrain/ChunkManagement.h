@@ -20,6 +20,7 @@
 #include <graphics/TextureManager.h>
 #include <glm/glm.hpp>
 #include <external/ThreadPool.h>
+#include <atomic>
 
 class ChunkManagement {
 public:
@@ -70,8 +71,9 @@ private:
 
     float fogDistance;
 
-    volatile int chunksCurrentlyGenerating;
-    volatile int chunksCurrentlyMeshing;
+    std::atomic<int> chunksCurrentlyGenerating;
+    std::atomic<int> chunksCurrentlyMeshing;
+
     unsigned int cubeVbo;
 
     const float cubeData[6 * 6 * (3 + 2 + 1)] = {
