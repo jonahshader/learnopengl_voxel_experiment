@@ -25,6 +25,7 @@ skyColor(0.5f, 0.45f, 0.95f)
     // load textures
     textureManager.addSpriteArray("textures/spritesheet.png", "textures/spritesheet.atlas");
     textureManager.addSpriteSheet("textures/padded_textures.png", "textures/padded_textures.atlas");
+    textureManager.addSpriteSheet("textures/items.png", "textures/items.pack");
     // create player
     entt::entity player = registry.create();
     registry.emplace<Components::Position>(player, glm::dvec3(0.5, 0.5, 0.5));

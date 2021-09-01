@@ -122,8 +122,14 @@ public:
     struct PlayerControl {};
 
     struct Dig {
-        bool isDigging;
+        double radius;
     };
+
+    struct Score {
+        long score;
+    };
+
+    struct Collectible {};
 
     struct CameraAttach {
         double fov;
