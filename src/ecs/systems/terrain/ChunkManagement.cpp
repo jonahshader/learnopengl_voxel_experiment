@@ -469,58 +469,58 @@ void ChunkManagement::generateChunk(volatile Components::ChunkStatusEnum* chunkS
     // convert float data to voxel data
 //#pragma omp parallel for
     for (int i = 0; i < VOXELS_PER_CHUNK; ++i) {
-        // convert z y x to x y z indices for FastNoiseSIMD library
-        int x = i % CHUNK_SIZE;
-        int y = (i / CHUNK_SIZE) % CHUNK_SIZE;
-        int z = (i / (CHUNK_SIZE * CHUNK_SIZE));
-        x += xChunk * CHUNK_SIZE;
-        y += yChunk * CHUNK_SIZE;
-        z += zChunk * CHUNK_SIZE;
-        float xx = x;
-        float yy = y;
-        float zz = z;
-        yy += overallTerrainHeightOffset.GetNoise(x, z) * 1000.0f;
+        // convert zr yr xr to xr yr zr indices for FastNoiseSIMD library
+        int xr = i % CHUNK_SIZE;
+        int yr = (i / CHUNK_SIZE) % CHUNK_SIZE;
+        int zr = (i / (CHUNK_SIZE * CHUNK_SIZE));
+        xr += xChunk * CHUNK_SIZE;
+        yr += yChunk * CHUNK_SIZE;
+        zr += zChunk * CHUNK_SIZE;
+        float x = xr;
+        float y = yr;
+        float z = zr;
+        y += overallTerrainHeightOffset.GetNoise(xr, zr) * 1000.0f;
 
 
         float slopeScaler = 0.0015f;
 //        float terraceScalar = 5.0f;
         float terraceSize = 12.0;
 
-        float terraceValRaw = terraceOffset.GetNoise(xx, zz);
-        float terraceSelectRaw = terraceSelect.GetNoise(xx, zz);
+        float terraceValRaw = terraceOffset.GetNoise(x, z);
+        float terraceSelectRaw = terraceSelect.GetNoise(x, z);
         float terraceVal = ((terraceValRaw + 1.f) * 0.5f) * ((terraceSelectRaw > 0 ? 1 : -1) + 1.0f) * 0.5f;
 //        terraceVal = pow(terraceVal, 0.1f);
 //        terraceVal = 1.0f;
 
-        float yTerraced = (floorf(yy / terraceSize) + 0.5f) * terraceSize;
-//        yy = yTerraced;
-        yy = (terraceVal * yTerraced) + (1-terraceVal) * yy;
+        float yTerraced = (floorf(y / terraceSize) + 0.5f) * terraceSize;
+//        y = yTerraced;
+        y = (terraceVal * yTerraced) + (1 - terraceVal) * y;
 
-        float slope = -yy * slopeScaler;
-        float mainNoiseVal = mainNoise.GetNoise(xx, yy, zz) + slope;
-        float smoothHillVal = smoothHill.GetNoise(xx, yy, zz) * smoothHillMagnitude + slope;
-        float smoothHillSelectVal = pow((smoothHillSelect.GetNoise(xx, yy, zz) + 1.0f) * 0.5f, 0.6f);
+        float slope = -y * slopeScaler;
+        float mainNoiseVal = mainNoise.GetNoise(x, y, z) + slope;
+        float smoothHillVal = smoothHill.GetNoise(x, y, z) * smoothHillMagnitude + slope;
+        float smoothHillSelectVal = pow((smoothHillSelect.GetNoise(x, y, z) + 1.0f) * 0.5f, 0.6f);
 
-//        float caveA = caveNoiseA.GetNoise(x, y, z);
-//        float caveB = caveNoiseB.GetNoise(x, y, z);
+//        float caveA = caveNoiseA.GetNoise(xr, yr, zr);
+//        float caveB = caveNoiseB.GetNoise(xr, yr, zr);
 //        float caveWarpScalar = 0.0f;
-//        float caveC = caveNoiseC.GetNoise(caveNoiseA.GetNoise(y, z) * caveWarpScalar + x,
-//                                          caveNoiseA.GetNoise(x, z) * caveWarpScalar + y,
-//                                          caveNoiseA.GetNoise(x, y) * caveWarpScalar + z);
+//        float caveC = caveNoiseC.GetNoise(caveNoiseA.GetNoise(yr, zr) * caveWarpScalar + xr,
+//                                          caveNoiseA.GetNoise(xr, zr) * caveWarpScalar + yr,
+//                                          caveNoiseA.GetNoise(xr, yr) * caveWarpScalar + zr);
 //        float caveMixed = caveC;
 //        bool isCave = caveMixed > 0.85;
 //        bool isCave = false;
 
-        float c = caveNoiseC.GetNoise(x, y, z);
+        float c = caveNoiseC.GetNoise(xr, yr, zr);
         bool isCave = std::abs(c) > 0.15;
 
-//        if (((x == 0) || (z == 0)) && (((y % 4)/3) == 0)) {
+//        if (((xr == 0) || (zr == 0)) && (((yr % 4)/3) == 0)) {
 //            chunkData[i] = 0;
 //        } else
         if (!isCave) {
             float noiseOut = mainNoiseVal * (1-smoothHillSelectVal) + smoothHillVal * smoothHillSelectVal;
 //            if (noiseOut > 0) {
-                if (terraceVal > 0.5 && noiseOut > 0.00 && yTerraced < yy) {
+                if (terraceVal > 0.5 && noiseOut > 0.00 && yTerraced < y) {
                     chunkData[i] = 4;
                 } else
                     if (noiseOut > 0.1) {
