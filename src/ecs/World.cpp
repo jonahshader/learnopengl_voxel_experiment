@@ -57,7 +57,7 @@ skyColor(0.5f, 0.45f, 0.95f)
     float sh = -(spriteInfo.sh / textureDim.textureHeight);
 
     std::cout << spriteInfo.name << " " << spriteInfo.sw << " " << spriteInfo.sh << " " << spriteInfo.sx << " " << spriteInfo.sy << std::endl;
-    for (int i = 0; i < 10000; ++i) {
+    for (int i = 0; i < 1000; ++i) {
         entt::entity bb = registry.create();
         float scale = zeroOneDist(randomEngine) * 0.9f + 0.1f;
         registry.emplace<Components::GraphicBillboard>(bb, sx, sy, sw, sh, scale, scale * 2, true);
