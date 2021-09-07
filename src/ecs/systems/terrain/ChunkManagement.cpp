@@ -21,6 +21,7 @@ ChunkManagement::ChunkManagement(const char* vertexPathInstVer, const char* frag
         pool(MAX_CONCURRENT_GENERATES + 1 + MAX_CONCURRENT_MESH_GENS),
         voxelShader(vertexPathInstVer, fragmentPathInstVer),
         voxelShaderTris(vertexPathTriVer, fragmentPathTriVer),
+        mainTerrainFunction(seeder()),
         mainNoise(),
         terraceOffset(),
         terraceSelect(),
@@ -457,17 +458,6 @@ bool ChunkManagement::chunkCompareFun(entt::entity chunk1, entt::entity chunk2) 
 
 void ChunkManagement::generateChunk(volatile Components::ChunkStatusEnum* chunkStatus, int xChunk, int yChunk, int zChunk,
                                     blockid* chunkData) {
-
-//    float* noiseSet = mainNoise->GetSimplexFractalSet(chunkPosition.x * CHUNK_SIZE,
-//                                                  chunkPosition.y * CHUNK_SIZE,
-//                                                  chunkPosition.z * CHUNK_SIZE,
-//                                                  chunkPosition.x * CHUNK_SIZE + CHUNK_SIZE,
-//                                                  chunkPosition.y * CHUNK_SIZE + CHUNK_SIZE,
-//                                                  chunkPosition.z * CHUNK_SIZE + CHUNK_SIZE);
-//    chunkData.data.resize(VOXELS_PER_CHUNK);
-
-    // convert float data to voxel data
-//#pragma omp parallel for
     for (int i = 0; i < VOXELS_PER_CHUNK; ++i) {
         // convert zr yr xr to xr yr zr indices for FastNoiseSIMD library
         int xr = i % CHUNK_SIZE;
@@ -479,73 +469,107 @@ void ChunkManagement::generateChunk(volatile Components::ChunkStatusEnum* chunkS
         float x = xr;
         float y = yr;
         float z = zr;
-        y += overallTerrainHeightOffset.GetNoise(xr, zr) * 1000.0f;
 
-
-        float slopeScaler = 0.0015f;
-//        float terraceScalar = 5.0f;
-        float terraceSize = 12.0;
-
-        float terraceValRaw = terraceOffset.GetNoise(x, z);
-        float terraceSelectRaw = terraceSelect.GetNoise(x, z);
-        float terraceVal = ((terraceValRaw + 1.f) * 0.5f) * ((terraceSelectRaw > 0 ? 1 : -1) + 1.0f) * 0.5f;
-//        terraceVal = pow(terraceVal, 0.1f);
-//        terraceVal = 1.0f;
-
-        float yTerraced = (floorf(y / terraceSize) + 0.5f) * terraceSize;
-//        y = yTerraced;
-        y = (terraceVal * yTerraced) + (1 - terraceVal) * y;
-
-        float slope = -y * slopeScaler;
-        float mainNoiseVal = mainNoise.GetNoise(x, y, z) + slope;
-        float smoothHillVal = smoothHill.GetNoise(x, y, z) * smoothHillMagnitude + slope;
-        float smoothHillSelectVal = pow((smoothHillSelect.GetNoise(x, y, z) + 1.0f) * 0.5f, 0.6f);
-
-//        float caveA = caveNoiseA.GetNoise(xr, yr, zr);
-//        float caveB = caveNoiseB.GetNoise(xr, yr, zr);
-//        float caveWarpScalar = 0.0f;
-//        float caveC = caveNoiseC.GetNoise(caveNoiseA.GetNoise(yr, zr) * caveWarpScalar + xr,
-//                                          caveNoiseA.GetNoise(xr, zr) * caveWarpScalar + yr,
-//                                          caveNoiseA.GetNoise(xr, yr) * caveWarpScalar + zr);
-//        float caveMixed = caveC;
-//        bool isCave = caveMixed > 0.85;
-//        bool isCave = false;
-
-        float c = caveNoiseC.GetNoise(xr, yr, zr);
-        bool isCave = std::abs(c) > 0.15;
-
-//        if (((xr == 0) || (zr == 0)) && (((yr % 4)/3) == 0)) {
-//            chunkData[i] = 0;
-//        } else
-        if (!isCave) {
-            float noiseOut = mainNoiseVal * (1-smoothHillSelectVal) + smoothHillVal * smoothHillSelectVal;
-//            if (noiseOut > 0) {
-                if (terraceVal > 0.5 && noiseOut > 0.00 && yTerraced < y) {
-                    chunkData[i] = 4;
-                } else
-                    if (noiseOut > 0.1) {
-                    (chunkData)[i] = 3;
-                } else if (noiseOut > 0.05) {
-                    (chunkData)[i] = 2;
-                } else if (noiseOut > 0.0) {
-                    (chunkData)[i] = 1;
-                } else {
-                    (chunkData)[i] = 0;
-                }
-//            } else {
-//                chunkData[i] = 0;
-//            }
-        } else {
-            chunkData[i] = 0;
-        }
+        chunkData[i] = mainTerrainFunction.getMainFun()(FN_VEC3{x, y, z});
     }
 
 
     //update state to GENERATED_OR_LOADED
     *chunkStatus = Components::ChunkStatusEnum::GENERATED_OR_LOADED;
-//    std::cout << "Done generating chunk" << std::endl;
     chunksCurrentlyGenerating--;
 }
+
+//void ChunkManagement::generateChunk(volatile Components::ChunkStatusEnum* chunkStatus, int xChunk, int yChunk, int zChunk,
+//                                    blockid* chunkData) {
+//
+////    float* noiseSet = mainNoise->GetSimplexFractalSet(chunkPosition.x * CHUNK_SIZE,
+////                                                  chunkPosition.y * CHUNK_SIZE,
+////                                                  chunkPosition.z * CHUNK_SIZE,
+////                                                  chunkPosition.x * CHUNK_SIZE + CHUNK_SIZE,
+////                                                  chunkPosition.y * CHUNK_SIZE + CHUNK_SIZE,
+////                                                  chunkPosition.z * CHUNK_SIZE + CHUNK_SIZE);
+////    chunkData.data.resize(VOXELS_PER_CHUNK);
+//
+//    // convert float data to voxel data
+////#pragma omp parallel for
+//    for (int i = 0; i < VOXELS_PER_CHUNK; ++i) {
+//        // convert zr yr xr to xr yr zr indices for FastNoiseSIMD library
+//        int xr = i % CHUNK_SIZE;
+//        int yr = (i / CHUNK_SIZE) % CHUNK_SIZE;
+//        int zr = (i / (CHUNK_SIZE * CHUNK_SIZE));
+//        xr += xChunk * CHUNK_SIZE;
+//        yr += yChunk * CHUNK_SIZE;
+//        zr += zChunk * CHUNK_SIZE;
+//        float x = xr;
+//        float y = yr;
+//        float z = zr;
+//        y += overallTerrainHeightOffset.GetNoise(xr, zr) * 1000.0f;
+//
+//
+//        float slopeScaler = 0.0015f;
+////        float terraceScalar = 5.0f;
+//        float terraceSize = 12.0;
+//
+//        float terraceValRaw = terraceOffset.GetNoise(x, z);
+//        float terraceSelectRaw = terraceSelect.GetNoise(x, z);
+//        float terraceVal = ((terraceValRaw + 1.f) * 0.5f) * ((terraceSelectRaw > 0 ? 1 : -1) + 1.0f) * 0.5f;
+////        terraceVal = pow(terraceVal, 0.1f);
+////        terraceVal = 1.0f;
+//
+//        float yTerraced = (floorf(y / terraceSize) + 0.5f) * terraceSize;
+////        y = yTerraced;
+//        y = (terraceVal * yTerraced) + (1 - terraceVal) * y;
+//
+//        float slope = -y * slopeScaler;
+//        float mainNoiseVal = mainNoise.GetNoise(x, y, z) + slope;
+//        float smoothHillVal = smoothHill.GetNoise(x, y, z) * smoothHillMagnitude + slope;
+//        float smoothHillSelectVal = pow((smoothHillSelect.GetNoise(x, y, z) + 1.0f) * 0.5f, 0.6f);
+//
+////        float caveA = caveNoiseA.GetNoise(xr, yr, zr);
+////        float caveB = caveNoiseB.GetNoise(xr, yr, zr);
+////        float caveWarpScalar = 0.0f;
+////        float caveC = caveNoiseC.GetNoise(caveNoiseA.GetNoise(yr, zr) * caveWarpScalar + xr,
+////                                          caveNoiseA.GetNoise(xr, zr) * caveWarpScalar + yr,
+////                                          caveNoiseA.GetNoise(xr, yr) * caveWarpScalar + zr);
+////        float caveMixed = caveC;
+////        bool isCave = caveMixed > 0.85;
+////        bool isCave = false;
+//
+//        float c = caveNoiseC.GetNoise(xr, yr, zr);
+//        bool isCave = std::abs(c) > 0.15;
+//
+////        if (((xr == 0) || (zr == 0)) && (((yr % 4)/3) == 0)) {
+////            chunkData[i] = 0;
+////        } else
+//        if (!isCave) {
+//            float noiseOut = mainNoiseVal * (1-smoothHillSelectVal) + smoothHillVal * smoothHillSelectVal;
+////            if (noiseOut > 0) {
+//                if (terraceVal > 0.5 && noiseOut > 0.00 && yTerraced < y) {
+//                    chunkData[i] = 4;
+//                } else
+//                    if (noiseOut > 0.1) {
+//                    (chunkData)[i] = 3;
+//                } else if (noiseOut > 0.05) {
+//                    (chunkData)[i] = 2;
+//                } else if (noiseOut > 0.0) {
+//                    (chunkData)[i] = 1;
+//                } else {
+//                    (chunkData)[i] = 0;
+//                }
+////            } else {
+////                chunkData[i] = 0;
+////            }
+//        } else {
+//            chunkData[i] = 0;
+//        }
+//    }
+//
+//
+//    //update state to GENERATED_OR_LOADED
+//    *chunkStatus = Components::ChunkStatusEnum::GENERATED_OR_LOADED;
+////    std::cout << "Done generating chunk" << std::endl;
+//    chunksCurrentlyGenerating--;
+//}
 
 void ChunkManagement::generateMeshInstances(volatile Components::ChunkStatusEnum* chunkStatus,
                                             blockid* chunkData, std::vector<unsigned char>* offsets,

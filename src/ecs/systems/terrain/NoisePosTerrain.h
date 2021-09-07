@@ -24,19 +24,26 @@ public:
 };
  */
 
-class NoisePosTerrain {
-private:
-    FastNoise noise;
+//class NoisePosTerrain {
+//private:
+//    FastNoise noise;
+//
+//public:
+//    NoisePosTerrain(FastNoise&& noise) : noise(noise) { }
+//
+//    FN_DECIMAL operator() (FN_VEC3 inputPos) {
+//        return noise.GetNoise(inputPos.x, inputPos.y, inputPos.z);
+//    }
+//
+//    const FastNoise &getNoise() const {
+//        return noise;
+//    }
+//};
 
+class NoisePosTerrain : public FastNoise {
 public:
-    NoisePosTerrain(FastNoise&& noise) : noise(noise) { }
-
-    FN_DECIMAL operator() (FN_VEC3 inputPos) {
-        return noise.GetNoise(inputPos.x, inputPos.y, inputPos.z);
-    }
-
-    const FastNoise &getNoise() const {
-        return noise;
+    FN_DECIMAL operator() (FN_VEC3 inputPos) const {
+        return GetNoise(inputPos.x, inputPos.y, inputPos.z);
     }
 };
 

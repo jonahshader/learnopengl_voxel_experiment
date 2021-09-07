@@ -5,10 +5,8 @@
 #ifndef LEARNOPENGL_VOXEL_EXPERIMENT_COORDCROSSFADE_H
 #define LEARNOPENGL_VOXEL_EXPERIMENT_COORDCROSSFADE_H
 
-#include <functional>
-#include "TerrainFunctions.h"
-
 #include <memory>
+#include "TerrainFunctions.h"
 
 class CoordCrossFade {
 private:

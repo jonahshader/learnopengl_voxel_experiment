@@ -9,7 +9,7 @@
 
 World::World(const char* vertexPathInst, const char* fragmentPathInst,
              const char* vertexPathTri, const char* fragmentPathTri) :
-seeder(), // 0
+seeder(std::random_device{}()), // 0
 registry(),
 chunkManagement(vertexPathInst, fragmentPathInst, vertexPathTri, fragmentPathTri, seeder),
 ai(seeder),
@@ -20,7 +20,7 @@ pMouseY(0.0),
 firstMouse(true),
 screenWidth(800),
 screenHeight(600),
-skyColor(0.5f, 0.45f, 0.95f)
+skyColor(0.3f, 0.45f, 0.95f)
 {
     // load textures
     textureManager.addSpriteArray("textures/spritesheet.png", "textures/spritesheet.atlas");

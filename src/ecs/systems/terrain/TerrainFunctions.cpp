@@ -4,14 +4,83 @@
 
 #include "TerrainFunctions.h"
 
-posTerrain_t TerrainFunctions::noiseToPosTerrain(FastNoise&& noise) {
-    return [noise = std::move(noise)](FN_VEC3 pos) {
-        return noise.GetNoise(pos.x, pos.y, pos.z);
+// posTerrain_t posTerrain_t
+posTerrain_t operator+(const posTerrain_t& a, const posTerrain_t& b) {
+    return [=](FN_VEC3 pos) {
+        return a(pos) + b(pos);
     };
 }
 
-posTerrain_t TerrainFunctions::noiseToPosTerrain(FastNoise noise) {
-    return [noise = std::move(noise)](FN_VEC3 pos) {
-        return noise.GetNoise(pos.x, pos.y, pos.z);
+posTerrain_t operator-(const posTerrain_t& a, const posTerrain_t& b) {
+    return [=](FN_VEC3 pos) {
+        return a(pos) - b(pos);
+    };
+}
+
+posTerrain_t operator*(const posTerrain_t& a, const posTerrain_t& b) {
+    return [=](FN_VEC3 pos) {
+        return a(pos) * b(pos);
+    };
+}
+
+posTerrain_t operator/(const posTerrain_t& a, const posTerrain_t& b) {
+    return [=](FN_VEC3 pos) {
+        return a(pos) / b(pos);
+    };
+}
+
+// posTerrain_t and decimal
+posTerrain_t operator+(const posTerrain_t& a, const FN_DECIMAL b) {
+    return [=](FN_VEC3 pos) {
+        return a(pos) + b;
+    };
+}
+
+posTerrain_t operator-(const posTerrain_t& a, const FN_DECIMAL b) {
+    return [=](FN_VEC3 pos) {
+        return a(pos) - b;
+    };
+}
+
+posTerrain_t operator*(const posTerrain_t& a, const FN_DECIMAL b) {
+    return [=](FN_VEC3 pos) {
+        return a(pos) * b;
+    };
+}
+
+posTerrain_t operator/(const posTerrain_t& a, const FN_DECIMAL b) {
+    return [=](FN_VEC3 pos) {
+        return a(pos) / b;
+    };
+}
+
+// decimal posTerrain_t
+posTerrain_t operator+(const FN_DECIMAL a, const posTerrain_t& b) {
+    return [=](FN_VEC3 pos) {
+        return a + b(pos);
+    };
+}
+
+posTerrain_t operator-(const FN_DECIMAL a, const posTerrain_t& b) {
+    return [=](FN_VEC3 pos) {
+        return a - b(pos);
+    };
+}
+
+posTerrain_t operator*(const FN_DECIMAL a, const posTerrain_t& b) {
+    return [=](FN_VEC3 pos) {
+        return a * b(pos);
+    };
+}
+
+posTerrain_t operator/(const FN_DECIMAL a, const posTerrain_t& b) {
+    return [=](FN_VEC3 pos) {
+        return a / b(pos);
+    };
+}
+
+posTerrain_t applyCoordShift(const posTerrain_t& terrain, const coordShift_t& coordShift) {
+    return [=](FN_VEC3 pos) {
+        return terrain(coordShift(pos));
     };
 }

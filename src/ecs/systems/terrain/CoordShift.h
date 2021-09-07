@@ -6,20 +6,45 @@
 #define LEARNOPENGL_VOXEL_EXPERIMENT_COORDSHIFT_H
 
 #include <functional>
+#include <random>
 #include "TerrainFunctions.h"
+#include "NoisePosTerrain.h"
 
 
 class CoordShift {
 private:
-    std::shared_ptr<posTerrain_t> xShift;
-    std::shared_ptr<posTerrain_t> yShift;
-    std::shared_ptr<posTerrain_t> zShift;
+    posTerrain_t xShift;
+    posTerrain_t yShift;
+    posTerrain_t zShift;
 
 public:
-    CoordShift(std::shared_ptr<posTerrain_t> xShift,
-               std::shared_ptr<posTerrain_t> yShift,
-               std::shared_ptr<posTerrain_t> zShift) :
+    CoordShift(posTerrain_t xShift,
+               posTerrain_t yShift,
+               posTerrain_t zShift) :
             xShift(xShift), yShift(yShift), zShift(zShift) { }
+
+    CoordShift(FN_DECIMAL frequency, FN_DECIMAL magnitude, int octaves, std::mt19937_64 mt) {
+        auto xShiftNoise = NoisePosTerrain();
+        xShiftNoise.SetNoiseType(FastNoise::SimplexFractal);
+        xShiftNoise.SetSeed(mt());
+        xShiftNoise.SetFrequency(frequency);
+        xShiftNoise.SetFractalOctaves(octaves);
+        xShift = xShiftNoise * magnitude;
+
+        auto yShiftNoise = NoisePosTerrain();
+        yShiftNoise.SetNoiseType(FastNoise::SimplexFractal);
+        yShiftNoise.SetSeed(mt());
+        yShiftNoise.SetFrequency(frequency);
+        yShiftNoise.SetFractalOctaves(octaves);
+        yShift = yShiftNoise * magnitude;
+
+        auto zShiftNoise = NoisePosTerrain();
+        zShiftNoise.SetNoiseType(FastNoise::SimplexFractal);
+        zShiftNoise.SetSeed(mt());
+        zShiftNoise.SetFrequency(frequency);
+        zShiftNoise.SetFractalOctaves(octaves);
+        zShift = zShiftNoise * magnitude;
+    }
 
     FN_VEC3 operator() (FN_VEC3 inputPos) {
         return inputPos + FN_VEC3 { xShift(inputPos), yShift(inputPos), zShift(inputPos) };
