@@ -23,6 +23,19 @@ public:
                posTerrain_t zShift) :
             xShift(xShift), yShift(yShift), zShift(zShift) { }
 
+
+    CoordShift(NoisePosTerrain baseNoise, FN_DECIMAL magnitude, std::mt19937_64 &mt) {
+        baseNoise.SetSeed(mt());
+        NoisePosTerrain yNoise = baseNoise;
+        yNoise.SetSeed(mt());
+        NoisePosTerrain zNoise = baseNoise;
+        zNoise.SetSeed(mt());
+
+        xShift = baseNoise * magnitude;
+        yShift = yNoise * magnitude;
+        zShift = zNoise * magnitude;
+    }
+
     CoordShift(FN_DECIMAL frequency, FN_DECIMAL magnitude, int octaves, std::mt19937_64 mt) {
         auto xShiftNoise = NoisePosTerrain();
         xShiftNoise.SetNoiseType(FastNoise::SimplexFractal);

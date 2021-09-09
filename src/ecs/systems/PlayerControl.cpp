@@ -49,8 +49,8 @@ void PlayerControl::updateMovement(entt::registry &registry, double dt, GLFWwind
                 targetVel.targetVel.z = 0;
             }
 
-//            if (registry.has<Components::ChunkCollision>(entity)) {
-//                auto &chunkCollision = registry.get<Components::ChunkCollision>(entity);
+//            if (registry.has<Components::VoxelCollision>(entity)) {
+//                auto &chunkCollision = registry.get<Components::VoxelCollision>(entity);
 //                if (chunkCollision.grounded) {
 //                    targetVel.targetVel.y = std::max(yMove * speed, 0.0);
 //                }

@@ -22,8 +22,10 @@ private:
     static bool checkPointCollision(entt::registry &registry, ChunkManagement &chunkManagement, glm::dvec3 &pos);
 
     static void runPointCollision(entt::registry &registry, ChunkManagement &chunkManagement, double dt);
-    static void runBoxCollision(entt::registry &registry, ChunkManagement &chunkManagement, double dt);
+    static void runBoxCollision(entt::registry &registry, ChunkManagement &chunkManagement);
 
+    // runYTeleport makes the entity teleport up if a grounded collision can be resolved by moving up by a certain amount
+    static void runYTeleport(entt::registry &registry, ChunkManagement &chunkManagement);
 };
 
 

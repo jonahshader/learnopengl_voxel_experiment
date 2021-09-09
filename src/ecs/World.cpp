@@ -32,7 +32,7 @@ skyColor(0.3f, 0.45f, 0.95f)
     registry.emplace<Components::Velocity>(player, glm::dvec3(0.0));
     registry.emplace<Components::Acceleration>(player, glm::dvec3(0.0));
     registry.emplace<Components::BoxCollider>(player, 1.9, 0.4, glm::dvec3(0.5, 0.5, 0.5));
-    registry.emplace<Components::ChunkCollision>(player, false);
+    registry.emplace<Components::VoxelCollision>(player, false);
     registry.emplace<Components::ChunkPosition>(player, 0, 0, 0);
     registry.emplace<Components::DirectionPitchYaw>(player, M_PI / 2, 0.0);
     registry.emplace<Components::PlayerControl>(player);
@@ -41,6 +41,7 @@ skyColor(0.3f, 0.45f, 0.95f)
     registry.emplace<Components::CameraAttach>(player, 90.0, glm::dvec3(0.0, 1.75, 0.0));
     registry.emplace<Components::Gravity>(player, -20.0);
     registry.emplace<Components::TargetVelocity>(player, glm::dvec3(0.0));
+//    registry.emplace<Components::YTeleport>(player, CHUNK_SIZE, 1.0, false);
 
 
     // make 100 billboards
@@ -68,7 +69,7 @@ skyColor(0.3f, 0.45f, 0.95f)
         registry.emplace<Components::Acceleration>(bb, glm::dvec3(0.0, 0.0, 0.0));
         registry.emplace<Components::Gravity>(bb, -20.0);
         registry.emplace<Components::TravelMaxSpeed>(bb, 5.612 * scale);
-        registry.emplace<Components::ChunkCollision>(bb, false);
+        registry.emplace<Components::VoxelCollision>(bb, false);
         registry.emplace<Components::ChunkPosition>(bb, 0, 0, 0);
         registry.emplace<Components::JumpVelocity>(bb, 7.0);
         registry.emplace<Components::TargetVelocity>(bb, glm::dvec3(0.0));

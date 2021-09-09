@@ -18,7 +18,8 @@ void Physics::updatePosition(entt::registry &registry, ChunkManagement &chunkMan
         pos.pos += vel.vel * dt;
     });
 
-    runBoxCollision(registry, chunkManagement, dt);
+    runYTeleport(registry, chunkManagement);
+    runBoxCollision(registry, chunkManagement);
     runPointCollision(registry, chunkManagement, dt);
 
     // update chunk positions
@@ -60,8 +61,8 @@ void Physics::updateAccelFromVelocityTarget(entt::registry &registry, double dt)
         double targetDirection = atan2(targetVel.targetVel.z, targetVel.targetVel.x);
         double accel = 60;
 
-        if (registry.has<Components::ChunkCollision>(entity)) {
-            auto &chunkCollision = registry.get<Components::ChunkCollision>(entity);
+        if (registry.has<Components::VoxelCollision>(entity)) {
+            auto &chunkCollision = registry.get<Components::VoxelCollision>(entity);
             if (chunkCollision.grounded) {
                 if (targetMagnitude > currentMagnitude) {
                     acc.acc.x += accel * cos(targetDirection);
@@ -135,9 +136,8 @@ bool Physics::checkPointCollision(entt::registry &registry, ChunkManagement &chu
     return chunkManagement.inSolidBlock(registry, pos);
 }
 
-
-void Physics::runBoxCollision(entt::registry &registry, ChunkManagement &chunkManagement, double dt) {
-    auto collisionTestView = registry.view<Components::Position, Components::ChunkPosition, Components::Velocity, Components::ChunkCollision, Components::BoxCollider>();
+void Physics::runBoxCollision(entt::registry &registry, ChunkManagement &chunkManagement) {
+    auto collisionTestView = registry.view<Components::Position, Components::ChunkPosition, Components::Velocity, Components::VoxelCollision, Components::BoxCollider>();
 
     // perform collision detection and handling
     for (auto entity: collisionTestView) {
@@ -145,7 +145,7 @@ void Physics::runBoxCollision(entt::registry &registry, ChunkManagement &chunkMa
         auto &chunkPos = collisionTestView.get<Components::ChunkPosition>(entity);
         auto &vel = collisionTestView.get<Components::Velocity>(entity);
         auto &collider = collisionTestView.get<Components::BoxCollider>(entity);
-        auto &chunkCollision = collisionTestView.get<Components::ChunkCollision>(entity);
+        auto &voxelCollision = collisionTestView.get<Components::VoxelCollision>(entity);
 
         if (chunkManagement.isChunkDataLoaded(registry, chunkPos.x, chunkPos.y, chunkPos.z)) {
             if (checkRectangularCollision(registry, chunkManagement, pos.pos, collider)) {
@@ -157,7 +157,7 @@ void Physics::runBoxCollision(entt::registry &registry, ChunkManagement &chunkMa
                 int zcNew;
 
 
-                chunkCollision.grounded = (ycNew < yc);
+                voxelCollision.grounded = (ycNew < yc);
 
                 glm::dvec3 posPreMod = pos.pos;
                 glm::dvec3 velPreMod = vel.vel;
@@ -211,9 +211,9 @@ void Physics::runBoxCollision(entt::registry &registry, ChunkManagement &chunkMa
                     }
                 }
                 bool yFixed = correctionLevel == 1 || correctionLevel == 4 || correctionLevel == 5 || correctionLevel == 6;
-                chunkCollision.grounded = chunkCollision.grounded && yFixed;
+                voxelCollision.grounded = voxelCollision.grounded && yFixed;
             } else {
-                chunkCollision.grounded = false;
+                voxelCollision.grounded = false;
             }
         } else {
             vel.vel = glm::dvec3(0);
@@ -225,7 +225,7 @@ void Physics::runBoxCollision(entt::registry &registry, ChunkManagement &chunkMa
 }
 
 void Physics::runPointCollision(entt::registry &registry, ChunkManagement &chunkManagement, double dt) {
-    auto collisionTestView = registry.view<Components::Position, Components::ChunkPosition, Components::Velocity, Components::ChunkCollision, Components::PointCollider>();
+    auto collisionTestView = registry.view<Components::Position, Components::ChunkPosition, Components::Velocity, Components::VoxelCollision, Components::PointCollider>();
 
     // perform collision detection and handling
     for (auto entity: collisionTestView) {
@@ -233,7 +233,7 @@ void Physics::runPointCollision(entt::registry &registry, ChunkManagement &chunk
         auto &chunkPos = collisionTestView.get<Components::ChunkPosition>(entity);
         auto &vel = collisionTestView.get<Components::Velocity>(entity);
         auto &collider = collisionTestView.get<Components::PointCollider>(entity);
-        auto &chunkCollision = collisionTestView.get<Components::ChunkCollision>(entity);
+        auto &chunkCollision = collisionTestView.get<Components::VoxelCollision>(entity);
 
         if (chunkManagement.isChunkDataLoaded(registry, chunkPos.x, chunkPos.y, chunkPos.z)) {
             if (checkPointCollision(registry, chunkManagement, pos.pos)) {
@@ -279,7 +279,6 @@ void Physics::runPointCollision(entt::registry &registry, ChunkManagement &chunk
 //                }
 
                 bool yFixed = false;
-                double fix = 0.01;
                 if (checkPointCollision(registry, chunkManagement, pos.pos)) {
                     if (xcNew > xc) {
                         pos.pos.x = collider.lastValidPos.x;
@@ -316,6 +315,72 @@ void Physics::runPointCollision(entt::registry &registry, ChunkManagement &chunk
         }
 
         collider.lastValidPos = pos.pos;
+    }
+}
+
+void Physics::runYTeleport(entt::registry &registry, ChunkManagement &chunkManagement) {
+    auto yTeleportBoxView = registry.view<Components::Position, Components::ChunkPosition, Components::VoxelCollision, Components::YTeleport, Components::BoxCollider>();
+    for (auto entity: yTeleportBoxView) {
+        auto &pos = yTeleportBoxView.get<Components::Position>(entity);
+        auto &chunkPos = yTeleportBoxView.get<Components::ChunkPosition>(entity);
+        auto &voxelCollision = yTeleportBoxView.get<Components::VoxelCollision>(entity);
+        auto &yTeleport = yTeleportBoxView.get<Components::YTeleport>(entity);
+        auto &boxCollider = yTeleportBoxView.get<Components::BoxCollider>(entity);
+
+        if (((yTeleport.requireGrounded && voxelCollision.grounded) || !yTeleport.requireGrounded) && chunkManagement.isChunkDataLoaded(registry, chunkPos.x, chunkPos.y, chunkPos.z)) {
+            if (checkRectangularCollision(registry, chunkManagement, pos.pos, boxCollider)) {
+                glm::dvec3 posPreMod = pos.pos;
+                pos.pos.y = std::ceil(pos.pos.y);
+                if (checkRectangularCollision(registry, chunkManagement, pos.pos, boxCollider)) {
+                    bool success = false;
+                    for (int i = 1; i < yTeleport.maxSteps; ++i) {
+                        pos.pos = posPreMod;
+                        pos.pos.y = std::ceil(pos.pos.y);
+                        pos.pos.y += i * yTeleport.stepSize;
+                        if (!checkRectangularCollision(registry, chunkManagement, pos.pos, boxCollider)) {
+                            success = true;
+                            goto exitLoop;
+                        }
+                    }
+                    exitLoop:
+                    if (!success) {
+                        pos.pos = posPreMod;
+                    } else {
+                        voxelCollision.grounded = true;
+                    }
+                } else {
+                    pos.pos = posPreMod;
+                }
+            }
+        }
+    }
+
+    auto yTeleportPointView = registry.view<Components::Position, Components::ChunkPosition, Components::VoxelCollision, Components::YTeleport, Components::PointCollider>();
+    for (auto entity: yTeleportPointView) {
+        auto &pos = yTeleportPointView.get<Components::Position>(entity);
+        auto &chunkPos = yTeleportPointView.get<Components::ChunkPosition>(entity);
+        auto &voxelCollision = yTeleportPointView.get<Components::VoxelCollision>(entity);
+        auto &yTeleport = yTeleportBoxView.get<Components::YTeleport>(entity);
+        auto &pointCollider = yTeleportPointView.get<Components::PointCollider>(entity);
+
+        if (((yTeleport.requireGrounded && voxelCollision.grounded) || !yTeleport.requireGrounded) && chunkManagement.isChunkDataLoaded(registry, chunkPos.x, chunkPos.y, chunkPos.z)) {
+            if (checkPointCollision(registry, chunkManagement, pos.pos)) {
+                glm::dvec3 posPreMod = pos.pos;
+                bool success = false;
+                for (int i = 1; i < yTeleport.maxSteps; ++i) {
+                    pos.pos = posPreMod;
+                    pos.pos.y += i * yTeleport.stepSize;
+                    if (!checkPointCollision(registry, chunkManagement, pos.pos)) {
+                        success = true;
+                        goto exitLoop2;
+                    }
+                }
+                exitLoop2:
+                if (!success) {
+                    pos.pos = posPreMod;
+                }
+            }
+        }
     }
 }
 

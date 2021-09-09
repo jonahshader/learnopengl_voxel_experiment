@@ -88,8 +88,14 @@ public:
         std::vector<entt::entity> entities;
     };
 
-    struct ChunkCollision{
+    struct VoxelCollision {
         bool grounded;
+    };
+
+    struct YTeleport {
+        unsigned char maxSteps;
+        double stepSize;
+        bool requireGrounded;
     };
 
     struct BoxCollider{

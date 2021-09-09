@@ -27,33 +27,47 @@ class TerrainFunctions {
 };
 
 // posTerrain_t posTerrain_t
-posTerrain_t operator+(const posTerrain_t& a, const posTerrain_t& b);
+posTerrain_t operator+(const posTerrain_t a, const posTerrain_t b);
 
-posTerrain_t operator-(const posTerrain_t& a, const posTerrain_t& b);
 
-posTerrain_t operator*(const posTerrain_t& a, const posTerrain_t& b);
+posTerrain_t operator-(const posTerrain_t a, const posTerrain_t b);
 
-posTerrain_t operator/(const posTerrain_t& a, const posTerrain_t& b);
+posTerrain_t operator*(const posTerrain_t a, const posTerrain_t b);
+
+posTerrain_t operator/(const posTerrain_t a, const posTerrain_t b);
 
 // posTerrain_t and decimal
-posTerrain_t operator+(const posTerrain_t& a, const FN_DECIMAL b);
+posTerrain_t operator+(const posTerrain_t a, const FN_DECIMAL b);
 
-posTerrain_t operator-(const posTerrain_t& a, const FN_DECIMAL b);
+posTerrain_t operator-(const posTerrain_t a, const FN_DECIMAL b);
 
-posTerrain_t operator*(const posTerrain_t& a, const FN_DECIMAL b);
+posTerrain_t operator*(const posTerrain_t a, const FN_DECIMAL b);
 
-posTerrain_t operator/(const posTerrain_t& a, const FN_DECIMAL b);
+posTerrain_t operator/(const posTerrain_t a, const FN_DECIMAL b);
 
 // decimal posTerrain_t
-posTerrain_t operator+(const FN_DECIMAL a, const posTerrain_t& b);
+posTerrain_t operator+(const FN_DECIMAL a, const posTerrain_t b);
 
-posTerrain_t operator-(const FN_DECIMAL a, const posTerrain_t& b);
+posTerrain_t operator-(const FN_DECIMAL a, const posTerrain_t b);
 
-posTerrain_t operator*(const FN_DECIMAL a, const posTerrain_t& b);
+posTerrain_t operator*(const FN_DECIMAL a, const posTerrain_t b);
 
-posTerrain_t operator/(const FN_DECIMAL a, const posTerrain_t& b);
+posTerrain_t operator/(const FN_DECIMAL a, const posTerrain_t b);
 
-posTerrain_t applyCoordShift(const posTerrain_t& terrain, const coordShift_t& coordShift);
+void operator+=(posTerrain_t &a, const posTerrain_t &b);
+void operator-=(posTerrain_t &a, const posTerrain_t &b);
+void operator*=(posTerrain_t &a, const posTerrain_t &b);
+void operator/=(posTerrain_t &a, const posTerrain_t &b);
+
+void operator+=(posTerrain_t &a, const FN_DECIMAL b);
+void operator-=(posTerrain_t &a, const FN_DECIMAL b);
+void operator*=(posTerrain_t &a, const FN_DECIMAL b);
+void operator/=(posTerrain_t &a, const FN_DECIMAL b);
+
+// decimal += posTerrain_t does not make sense...
+
+
+posTerrain_t applyCoordShift(const posTerrain_t terrain, const coordShift_t coordShift);
 
 
 #endif //LEARNOPENGL_VOXEL_EXPERIMENT_TERRAINFUNCTIONS_H

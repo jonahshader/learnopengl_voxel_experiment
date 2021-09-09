@@ -42,6 +42,7 @@ public:
 
 class NoisePosTerrain : public FastNoise {
 public:
+//    NoisePosTerrain()
     FN_DECIMAL operator() (FN_VEC3 inputPos) const {
         return GetNoise(inputPos.x, inputPos.y, inputPos.z);
     }

@@ -26,20 +26,37 @@ public:
         mainNoise.SetFractalOctaves(7); // 7
         mainNoise.SetSeed(mt());
 
-        coordShift_t twister = CoordShift(0.002, 150.0, 7, mt);
+        coordShift_t twister = CoordShift(0.002, 70.0, 6, mt);
 
-        posTerrain_t mainTerrainFun = applyCoordShift(mainNoise + [](FN_VEC3 inputPos) {
-//            if (inputPos.x * inputPos.x + inputPos.z * inputPos.z < 32 * 32 * (std::sin(inputPos.y * 0.5f) * .4f + .6f)) {
-//                return 100.0f;
-//            } else {
-//                return (inputPos.y * 0.015f);
-//                return 0.0f;
-//            }
+
+
+//        posTerrain_t mainTerrainFun = mainNoise;
+        posTerrain_t mainTerrainFun = [](FN_VEC3 _){return 0.0f;};
+        mainTerrainFun += [](FN_VEC3 inputPos) {
             return (inputPos.y * 0.015f);
+        };
 
-//            return (inputPos.x * inputPos.x) + inputPos.y * .01f;
 
-        }, twister);
+
+        for (int i = 0; i < 1; ++i) {
+            auto glitcherNoise = NoisePosTerrain();
+            glitcherNoise.SetSeed(mt());
+            glitcherNoise.SetFractalOctaves(1);
+            glitcherNoise.SetFrequency(0.01 * (i + 1));
+            glitcherNoise.SetNoiseType(FastNoise::NoiseType::Cellular);
+            glitcherNoise.SetCellularDistanceFunction(FastNoise::CellularDistanceFunction::Manhattan);
+//            glitcherNoise.Set
+            coordShift_t glitcher = CoordShift(glitcherNoise, 50 / (float)(i+1), mt);
+            mainTerrainFun = applyCoordShift(mainTerrainFun, glitcher);
+//            mainTerrainFun = applyCoordShift(mainTerrainFun, glitcher);
+        }
+
+        mainTerrainFun = applyCoordShift(mainTerrainFun, twister);
+
+
+
+//        mainTerrainFun += 5;
+
 
 
 
