@@ -250,7 +250,7 @@ void Graphics::render(entt::registry &registry, TextureManager &tm, int screenWi
 
         glBindVertexArray(vaoBBYLock);
         glDrawArraysInstanced(GL_TRIANGLES, 0, 6, instancesBBYLock);
-        std::cout << "Billboards rendered: " << instancesBBYLock << std::endl;
+//        std::cout << "Billboards rendered: " << instancesBBYLock << std::endl;
         glBindVertexArray(0);
     }
 }

@@ -38,12 +38,14 @@ public:
     void render(entt::registry& registry, TextureManager &tm, int screenWidth, int screenHeight, const glm::vec3 &skyColor);
     static std::string chunkPositionToKey(int xChunk, int yChunk, int zChunk);
     static double worldPosChunkPosDist(Components::ChunkPosition &chunkPos, Components::Position &worldPos);
+    static double worldPosChunkPosDist2(Components::ChunkPosition &chunkPos, Components::Position &worldPos);
     static double worldPosChunkPosDist(int xc, int yc, int zc, double x, double y, double z);
+    static double worldPosChunkPosDist2(int xc, int yc, int zc, double x, double y, double z);
 
     float getFogDistance();
 
 private:
-    const static int CHUNK_LOAD_RADIUS = 420 + CHUNK_SIZE; // this is in voxels, not chunks
+    const static int CHUNK_LOAD_RADIUS = 1020 + CHUNK_SIZE; // this is in voxels, not chunks
     const static int CHUNK_UNLOAD_RADIUS = CHUNK_LOAD_RADIUS + CHUNK_SIZE; // this is in voxels, not chunks
     const static int MAX_MESH_BUFFERS_PER_FRAME = 1;
     const static int MAX_CONCURRENT_MESH_GENS = 5;

@@ -8,6 +8,8 @@
 
 #include <ecs/World.h>
 
+#include "other/Profiler.h"
+
 
 void framebuffer_size_callback(GLFWwindow*, int, int);
 void mouse_callback(GLFWwindow* window, double xpos, double ypos);
@@ -117,8 +119,9 @@ int main() {
         double worldRenderStartTime = glfwGetTime();
         world.draw(window);
 //        std::cout << "World render time: " << worldRenderStartTime - glfwGetTime() << std::endl;
-
+        Profiler::getInstance()->start("swap_buffers");
         glfwSwapBuffers(window);
+        Profiler::getInstance()->end("swap_buffers");
         glfwPollEvents();
         double time = glfwGetTime();
         dt = time - pTime;
@@ -156,6 +159,11 @@ void processInput(GLFWwindow* window)
     } else {
         wireframePressedLast = false;
     }
+
+    if (glfwGetKey(window, GLFW_KEY_P) == GLFW_PRESS) {
+        Profiler::getInstance()->print();
+    }
+
 //    if(glfwGetKey(window, GLFW_KEY_LEFT_SUPER))
 //        glfwSetWindowAttrib(window, GLFW_FOCUSED, false);
 }

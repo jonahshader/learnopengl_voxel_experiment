@@ -10,6 +10,8 @@
 #include <iostream>
 #include <random>
 
+#include "other/Profiler.h"
+
 entt::registry* ChunkManagement::chunkCompareRegistry = nullptr;
 Components::Position ChunkManagement::chunkComparePos = {glm::dvec3(0.0)};
 
@@ -203,6 +205,7 @@ void ChunkManagement::run(entt::registry &registry) {
     }
 
     if (playerFound) {
+        Profiler::getInstance()->start("chunk_load_nested_for_loop");
         // find player location
         auto &playerPos = registry.get<Components::Position>(player);
         auto &playerChunkPos = registry.get<Components::ChunkPosition>(player);
@@ -228,14 +231,17 @@ void ChunkManagement::run(entt::registry &registry) {
                 }
             }
         }
-
-
+        Profiler::getInstance()->end("chunk_load_nested_for_loop");
+        Profiler::getInstance()->start("sort_chunk_list");
         // sort chunks by closest to furthest
         // first need to set variables used by the comparor function
         chunkComparePos = playerPos;
         chunkCompareRegistry = &registry;
         // perform sort
+        std::cout << chunks.size() << std::endl;
         std::sort(chunks.begin(), chunks.end(), chunkCompareFun);
+        Profiler::getInstance()->end("sort_chunk_list");
+        Profiler::getInstance()->start("progress_chunk_stages");
 
         // init fogDistance to CHUNK_LOAD_RADIUS
         fogDistance = CHUNK_LOAD_RADIUS;
@@ -341,7 +347,9 @@ void ChunkManagement::run(entt::registry &registry) {
                 *chunkStatus.markedForRemoval = true;
             }
         }
-//
+        Profiler::getInstance()->end("progress_chunk_stages");
+        Profiler::getInstance()->start("erase_chunks");
+        //
 //        std::cout << "Process time: " << glfwGetTime() - processTime << std::endl;
 
         // shrink fog distance
@@ -357,6 +365,7 @@ void ChunkManagement::run(entt::registry &registry) {
                 }
             }
         }
+        Profiler::getInstance()->end("erase_chunks");
     }
 }
 
@@ -442,6 +451,15 @@ double ChunkManagement::worldPosChunkPosDist(Components::ChunkPosition &chunkPos
     return glm::length(chunkWorldPos);
 }
 
+double ChunkManagement::worldPosChunkPosDist2(Components::ChunkPosition &chunkPos, Components::Position &worldPos) {
+    return worldPosChunkPosDist2(chunkPos.x, chunkPos.y, chunkPos.z, worldPos.pos.x, worldPos.pos.y, worldPos.pos.z);
+//    glm::dvec3 chunkWorldPos(chunkPos.x * CHUNK_SIZE + (CHUNK_SIZE / 2.),
+//                             chunkPos.y * CHUNK_SIZE + (CHUNK_SIZE / 2.),
+//                             chunkPos.z * CHUNK_SIZE + (CHUNK_SIZE / 2.));
+//    chunkWorldPos -= worldPos.pos;
+//    return glm::length(chunkWorldPos);
+}
+
 double ChunkManagement::worldPosChunkPosDist(int xc, int yc, int zc, double x, double y, double z) {
     double xx = xc * CHUNK_SIZE + (CHUNK_SIZE / 2.);
     double yy = yc * CHUNK_SIZE + (CHUNK_SIZE / 2.);
@@ -450,9 +468,18 @@ double ChunkManagement::worldPosChunkPosDist(int xc, int yc, int zc, double x, d
     return sqrt(pow(xx-x, 2) + pow(yy-y, 2) + pow(zz-z, 2));
 }
 
+double ChunkManagement::worldPosChunkPosDist2(int xc, int yc, int zc, double x, double y, double z) {
+    double xx = xc * CHUNK_SIZE + (CHUNK_SIZE / 2.);
+    double yy = yc * CHUNK_SIZE + (CHUNK_SIZE / 2.);
+    double zz = zc * CHUNK_SIZE + (CHUNK_SIZE / 2.);
+
+    return (xx-x) * (xx-x) + (yy-y) * (yy-y) + (zz-z) * (zz-z);
+//    return pow(xx-x, 2) + pow(yy-y, 2) + pow(zz-z, 2);
+}
+
 bool ChunkManagement::chunkCompareFun(entt::entity chunk1, entt::entity chunk2) {
-    double dist1 = worldPosChunkPosDist(chunkCompareRegistry->get<Components::ChunkPosition>(chunk1), chunkComparePos);
-    double dist2 = worldPosChunkPosDist(chunkCompareRegistry->get<Components::ChunkPosition>(chunk2), chunkComparePos);
+    double dist1 = worldPosChunkPosDist2(chunkCompareRegistry->get<Components::ChunkPosition>(chunk1), chunkComparePos);
+    double dist2 = worldPosChunkPosDist2(chunkCompareRegistry->get<Components::ChunkPosition>(chunk2), chunkComparePos);
     return dist1 < dist2;
 }
 
@@ -793,6 +820,7 @@ void ChunkManagement::genVboVaoAndBuffer(entt::registry& registry, entt::entity 
 }
 
 void ChunkManagement::render(entt::registry &registry, TextureManager &tm, int screenWidth, int screenHeight, const glm::vec3 &skyColor) {
+    Profiler::getInstance()->start("chunks_render");
     /*
      * find player
      * convert player orientation into transform matrix
@@ -817,7 +845,7 @@ void ChunkManagement::render(entt::registry &registry, TextureManager &tm, int s
 //        glActiveTexture(GL_TEXTURE0 + tm.getTextureInfoA("grass_top").textureUnit);
         auto [playerCam, playerPos, playerChunkPos, playerDir] = registry.get<Components::CameraAttach, Components::Position, Components::ChunkPosition, Components::DirectionPitchYaw>(player);
 
-        glm::mat4 projection = glm::perspective(glm::radians((float) playerCam.fov), screenWidth / (float) screenHeight, 0.1f, 600.0f);
+        glm::mat4 projection = glm::perspective(glm::radians((float) playerCam.fov), screenWidth / (float) screenHeight, 0.1f, (float) CHUNK_LOAD_RADIUS);
 
 //        glm::mat4 view = glm::translate(glm::mat4(1.0f), glm::vec3((float) -(playerPos.pos.x - playerChunkPos.x * CHUNK_SIZE), (float) -(playerPos.pos.y - playerChunkPos.y * CHUNK_SIZE), (float) -(playerPos.pos.z - playerChunkPos.z * CHUNK_SIZE)));
         glm::mat4 view = glm::rotate(projection, (float) playerDir.pitch, glm::vec3(-1.0f, 0.0f, 0.0f));
@@ -887,7 +915,7 @@ void ChunkManagement::render(entt::registry &registry, TextureManager &tm, int s
                                 playerPos.pos.y + playerCam.posOffset.y - playerChunkPos.y * CHUNK_SIZE,
                                 playerPos.pos.z + playerCam.posOffset.z - playerChunkPos.z * CHUNK_SIZE);
 
-        auto renderableChunksTris = registry.view<Components::ChunkPosition, Components::ChunkOpenGLTriVer>();
+        auto renderableChunksTris = registry.group<Components::ChunkPosition, Components::ChunkOpenGLTriVer>(); // was view
 
         int drawCalls = 0;
         int triangles = 0;
@@ -914,9 +942,11 @@ void ChunkManagement::render(entt::registry &registry, TextureManager &tm, int s
             }
         }
 
-        std::cout << "Draw calls: " << drawCalls << " Tris: " << triangles << std::endl;
+//        std::cout << "Draw calls: " << drawCalls << " Tris: " << triangles << std::endl;
 #endif//TRI_MODE
     }
+
+    Profiler::getInstance()->end("chunks_render");
 }
 
 bool ChunkManagement::chunkHasAllNeighborData(entt::registry &registry, Components::ChunkPosition &chunkPosition) {
