@@ -25,6 +25,19 @@
 
 class ChunkManagement {
 public:
+    using chunkKey = std::array<int, 3>;
+
+    struct ArrayHasher {
+        std::size_t operator()(const std::array<int, 3>& a) const {
+            std::size_t h = 0;
+
+            for (auto e : a) {
+                h ^= std::hash<int>{}(e)  + 0x9e3779b9 + (h << 6) + (h >> 2);
+            }
+            return h;
+        }
+    };
+
     ChunkManagement(const char* vertexPathInstVer, const char* fragmentPathInstVer,
                     const char* vertexPathTriVer, const char* fragmentPathTriVer,
                     std::mt19937_64 &seeder);
@@ -36,7 +49,7 @@ public:
     bool inSolidBlock(entt::registry &registry, glm::dvec3 &pos, int cx, int cy, int cz);
     void run(entt::registry& registry);
     void render(entt::registry& registry, TextureManager &tm, int screenWidth, int screenHeight, const glm::vec3 &skyColor);
-    static std::string chunkPositionToKey(int xChunk, int yChunk, int zChunk);
+    static chunkKey chunkPositionToKey(int xChunk, int yChunk, int zChunk);
     static double worldPosChunkPosDist(Components::ChunkPosition &chunkPos, Components::Position &worldPos);
     static double worldPosChunkPosDist2(Components::ChunkPosition &chunkPos, Components::Position &worldPos);
     static double worldPosChunkPosDist(int xc, int yc, int zc, double x, double y, double z);
@@ -56,7 +69,7 @@ private:
     constexpr static float SIDE_BRIGHTNESS_MULT = 0.66f;
     constexpr static float BOTTOM_BRIGHTNESS_MULT = 0.25f;
 
-    std::unordered_map<std::string, entt::entity> chunkKeyToChunkEntity;
+    std::unordered_map<chunkKey, entt::entity, ArrayHasher> chunkKeyToChunkEntity;
     std::vector<entt::entity> chunks;
 
     ThreadPool pool;

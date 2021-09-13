@@ -31,7 +31,7 @@ int main() {
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
-//    glfwWindowHint(GLFW_SAMPLES, 32);
+    glfwWindowHint(GLFW_SAMPLES, 32);
 
     glfwGetMonitorWorkarea(glfwGetPrimaryMonitor(), NULL, NULL, &screenWidthGlobal, &screenHeightGlobal);
 
@@ -60,7 +60,7 @@ int main() {
     glEnable(GL_CULL_FACE);
 //    glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
 //    glEnable(GL_DEBUG_OUTPUT);
-//    glEnable(GL_MULTISAMPLE);
+    glEnable(GL_MULTISAMPLE);
     glfwSwapInterval(0); // 1 is vsync
 
 

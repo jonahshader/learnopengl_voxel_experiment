@@ -107,8 +107,10 @@ ChunkManagement::ChunkManagement(const char* vertexPathInstVer, const char* frag
 }
 
 
-std::string ChunkManagement::chunkPositionToKey(int xChunk, int yChunk, int zChunk) {
-    return "x" + std::to_string(xChunk) + "y" + std::to_string(yChunk) + "z" + std::to_string(zChunk);
+ChunkManagement::chunkKey ChunkManagement::chunkPositionToKey(int xChunk, int yChunk, int zChunk) {
+
+//    long output = (xChunk & 0x000FFFFF) + ((yChunk & 0x000FFFFF) << 16) + (((long)zChunk & 0x000FFFFF) << 24);
+    return chunkKey{xChunk, yChunk, zChunk};
 }
 
 entt::entity* ChunkManagement::getChunk(int xChunk, int yChunk, int zChunk) {
@@ -218,19 +220,79 @@ void ChunkManagement::run(entt::registry &registry) {
         int zCMin = playerChunkPos.z - cRadius;
         int zCMax = playerChunkPos.z + cRadius;
 
-        for (int x = xCMin; x <= xCMax; x++) {
-            for (int y = yCMin; y <= yCMax; y++) {
-                for (int z = zCMin; z <= zCMax; z++) {
-                    // try to create an entity for every chunk here if they are in range
-                    double dist = worldPosChunkPosDist(x, y, z, playerPos.pos.x, playerPos.pos.y, playerPos.pos.z);
-//                    std::cout << "dist: " << dist << std::endl;
-                    if (dist < CHUNK_LOAD_RADIUS) {
+        for (int x = 0; x <= cRadius; ++x) {
+            for (int y = 0; y <= cRadius; ++y) {
+                for (int z = 0; z <= cRadius; ++z) {
+                    int xx = playerChunkPos.x + x;
+                    int yy = playerChunkPos.y + y;
+                    int zz = playerChunkPos.z + z;
+                    int xxi = playerChunkPos.x - x;
+                    int yyi = playerChunkPos.y - y;
+                    int zzi = playerChunkPos.z - z;
+                    double dist = worldPosChunkPosDist2(xx, yy, zz, playerPos.pos.x, playerPos.pos.y, playerPos.pos.z);
+                    if (dist < CHUNK_LOAD_RADIUS * CHUNK_LOAD_RADIUS) {
                         // try create
-                        tryCreateChunk(registry, x, y, z);
+                        tryCreateChunk(registry, xx, yy, zz);
+                    }
+
+                    dist = worldPosChunkPosDist2(xxi, yy, zz, playerPos.pos.x, playerPos.pos.y, playerPos.pos.z);
+                    if (dist < CHUNK_LOAD_RADIUS * CHUNK_LOAD_RADIUS) {
+                        // try create
+                        tryCreateChunk(registry, xxi, yy, zz);
+                    }
+
+                    dist = worldPosChunkPosDist2(xx, yyi, zz, playerPos.pos.x, playerPos.pos.y, playerPos.pos.z);
+                    if (dist < CHUNK_LOAD_RADIUS * CHUNK_LOAD_RADIUS) {
+                        // try create
+                        tryCreateChunk(registry, xx, yyi, zz);
+                    }
+
+                    dist = worldPosChunkPosDist2(xxi, yyi, zz, playerPos.pos.x, playerPos.pos.y, playerPos.pos.z);
+                    if (dist < CHUNK_LOAD_RADIUS * CHUNK_LOAD_RADIUS) {
+                        // try create
+                        tryCreateChunk(registry, xxi, yyi, zz);
+                    }
+
+                    dist = worldPosChunkPosDist2(xx, yy, zzi, playerPos.pos.x, playerPos.pos.y, playerPos.pos.z);
+                    if (dist < CHUNK_LOAD_RADIUS * CHUNK_LOAD_RADIUS) {
+                        // try create
+                        tryCreateChunk(registry, xx, yy, zzi);
+                    }
+
+                    dist = worldPosChunkPosDist2(xxi, yy, zzi, playerPos.pos.x, playerPos.pos.y, playerPos.pos.z);
+                    if (dist < CHUNK_LOAD_RADIUS * CHUNK_LOAD_RADIUS) {
+                        // try create
+                        tryCreateChunk(registry, xxi, yy, zzi);
+                    }
+
+                    dist = worldPosChunkPosDist2(xx, yyi, zzi, playerPos.pos.x, playerPos.pos.y, playerPos.pos.z);
+                    if (dist < CHUNK_LOAD_RADIUS * CHUNK_LOAD_RADIUS) {
+                        // try create
+                        tryCreateChunk(registry, xx, yyi, zzi);
+                    }
+
+                    dist = worldPosChunkPosDist2(xxi, yyi, zzi, playerPos.pos.x, playerPos.pos.y, playerPos.pos.z);
+                    if (dist < CHUNK_LOAD_RADIUS * CHUNK_LOAD_RADIUS) {
+                        // try create
+                        tryCreateChunk(registry, xxi, yyi, zzi);
                     }
                 }
             }
         }
+
+//        for (int x = xCMin; x <= xCMax; x++) {
+//            for (int y = yCMin; y <= yCMax; y++) {
+//                for (int z = zCMin; z <= zCMax; z++) {
+//                    // try to create an entity for every chunk here if they are in range
+//                    double dist = worldPosChunkPosDist(x, y, z, playerPos.pos.x, playerPos.pos.y, playerPos.pos.z);
+////                    std::cout << "dist: " << dist << std::endl;
+//                    if (dist < CHUNK_LOAD_RADIUS) {
+//                        // try create
+//                        tryCreateChunk(registry, x, y, z);
+//                    }
+//                }
+//            }
+//        }
         Profiler::getInstance()->end("chunk_load_nested_for_loop");
         Profiler::getInstance()->start("sort_chunk_list");
         // sort chunks by closest to furthest
