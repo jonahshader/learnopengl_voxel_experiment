@@ -386,7 +386,7 @@ void ChunkManagement::run(entt::registry &registry) {
                             *chunkStatus.status = Components::ChunkStatusEnum::GENERATING_OR_LOADING;
                             auto &chunkData = registry.get<Components::ChunkData>(chunkEntity);
                             chunksCurrentlyGenerating++;
-                            updateNeighborChunksLocalFog(registry, chunkPosition);
+//                            updateNeighborChunksLocalFog(registry, chunkPosition);
                             pool.enqueue(&ChunkManagement::generateChunk, this, chunkStatus.status, chunkPosition.x, chunkPosition.y, chunkPosition.z, chunkData.data.data());
                             ++generates;
                         }
@@ -423,7 +423,7 @@ void ChunkManagement::run(entt::registry &registry) {
                                 for (int z = 0; z < 3; ++z) for (int y = 0; y < 3; ++y) for (int x = 0; x < 3; ++x) {
                                         (*neighborChunks)[x + y * 3 + z * 9] = getChunkData(registry, chunkPosition.x + x - 1, chunkPosition.y + y - 1, chunkPosition.z + z - 1).data.data();
                                     }
-                                updateNeighborChunksLocalFog(registry, chunkPosition);
+//                                updateNeighborChunksLocalFog(registry, chunkPosition);
                                 chunksCurrentlyMeshing++;
                                 pool.enqueue(&ChunkManagement::generateMeshInstTris, this, chunkStatus.status, chunkData.data.data(), chunkMeshDataTris.tris, neighborChunks);
 //                                pool.enqueue(&ChunkManagement::generateMeshGreedy, this, chunkStatus.status, chunkData.data.data(), chunkMeshDataTris.tris, neighborChunks);
@@ -544,13 +544,14 @@ void ChunkManagement::tryRemoveChunk(entt::registry &registry, entt::entity chun
         }
     }
 
-    if (registry.has<Components::ChunkData>(chunkEntity)) {
-        auto &chunkData = registry.get<Components::ChunkData>(chunkEntity);
-    }
+//    if (registry.has<Components::ChunkData>(chunkEntity)) {
+//        auto &chunkData = registry.get<Components::ChunkData>(chunkEntity);
+//    }
     delete chunkStatus.status;
     chunkStatus.status = nullptr;
     delete chunkStatus.markedForRemoval;
     chunkStatus.markedForRemoval = nullptr;
+
     // remove from registry
     registry.destroy(chunkEntity);
 }
