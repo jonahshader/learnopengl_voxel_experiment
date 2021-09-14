@@ -143,6 +143,29 @@ bool ChunkManagement::isChunkDataLoaded(entt::registry &registry, int xChunk, in
     }
 }
 
+bool ChunkManagement::isChunkFullyLoaded(entt::registry &registry, int xChunk, int yChunk, int zChunk) {
+    auto key = chunkPositionToKey(xChunk, yChunk, zChunk);
+    auto found = chunkKeyToChunkEntity.find(key);
+    if (found == chunkKeyToChunkEntity.end()) {
+//        std::cout << "not in unordered map" << std::endl;
+        return false;
+    } else {
+        if (registry.has<Components::ChunkStatus>(found->second)) {
+            auto &status = registry.get<Components::ChunkStatus>(found->second);
+            if (*status.status == Components::ChunkStatusEnum::MESH_BUFFERED) {
+//                std::cout << "success!" << std::endl;
+                return true;
+            } else {
+//                std::cout << "bad mesh status: " << *status.status << std::endl;
+                return false;
+            }
+        } else {
+//            std::cout << "doesn't have mesh status" << std::endl;
+            return false;
+        }
+    }
+}
+
 bool ChunkManagement::getVoxel(entt::registry &registry, int x, int y, int z, blockid &voxel) {
     int xChunk = x >= 0 ? x / CHUNK_SIZE : ((x+1) / CHUNK_SIZE) - 1;
     int yChunk = y >= 0 ? y / CHUNK_SIZE : ((y+1) / CHUNK_SIZE) - 1;
@@ -280,6 +303,21 @@ void ChunkManagement::run(entt::registry &registry) {
             }
         }
 
+        /*
+         * TODO:
+         * check how many loaded + loading chunks there are. if this is less than max gen then load more at the player pos
+         * iterate through all loaded, visible, non-air, non-solid chunks and try to load the neighboring chunks that
+         * have air touching the neighbor. put these all into the list and sort them like usual. this should significantly
+         * reduce the number of chunks that need to be sorted while only loading in visible chunks for the most part.
+         * caves won't be loaded in unless they are touching the surface chunks in some way. air chunks won't be loaded
+         * in which could be a problem if there are floating islands. might implement chunk sampling to determine if
+         * it is worth loading the rest of the chunk. if that fails then i could just load all air chunks like normal.
+         * i would still get a performance boost from not generating fully solid chunks. i'm not sure how to determine
+         * the fog distance yet. the current method won't work anymore. maybe i should do per chunk blurring. like
+         * a fog-of-war kind of thing. that way the chunk regions could be loaded asymmetrically and rendered without
+         * having to cut out the parts that like outside of the fog distance.
+         */
+
 //        for (int x = xCMin; x <= xCMax; x++) {
 //            for (int y = yCMin; y <= yCMax; y++) {
 //                for (int z = zCMin; z <= zCMax; z++) {
@@ -300,7 +338,7 @@ void ChunkManagement::run(entt::registry &registry) {
         chunkComparePos = playerPos;
         chunkCompareRegistry = &registry;
         // perform sort
-        std::cout << chunks.size() << std::endl;
+//        std::cout << chunks.size() << std::endl;
         std::sort(chunks.begin(), chunks.end(), chunkCompareFun);
         Profiler::getInstance()->end("sort_chunk_list");
         Profiler::getInstance()->start("progress_chunk_stages");
@@ -316,9 +354,11 @@ void ChunkManagement::run(entt::registry &registry) {
         for (auto chunkEntity : chunks) {
             auto [chunkStatus, chunkPosition] = registry.get<Components::ChunkStatus, Components::ChunkPosition>(chunkEntity);
 
+//            updateChunkLocalFog(registry, chunkEntity);
             // check if this chunk is in range
             // as long as these chunks are within the unload radius, they can continue loading
-
+            // TODO: reverse this so that distance starts at zero and goes up to the greatest distance
+            // local fog chunk will remove visible chunk seams
             if (*chunkStatus.status != Components::ChunkStatusEnum::MESH_BUFFERED) {
                 float dist = worldPosChunkPosDist(chunkPosition, playerPos);
                 if (dist < fogDistance)
@@ -337,8 +377,8 @@ void ChunkManagement::run(entt::registry &registry) {
                     default:
                         break;
                 }
-            } else if (worldPosChunkPosDist(chunkPosition, playerPos) < CHUNK_UNLOAD_RADIUS) {
-                // figure out the status of this chunk is and make it move to the next stage
+            } else if (worldPosChunkPosDist2(chunkPosition, playerPos) < CHUNK_UNLOAD_RADIUS * CHUNK_UNLOAD_RADIUS) {
+                // figure out what the status of this chunk is and make it move to the next stage
                 switch (*chunkStatus.status) {
                     case Components::ChunkStatusEnum::NEW:
                         if (generates < MAX_GENERATES_PER_FRAME && chunksCurrentlyGenerating < MAX_CONCURRENT_GENERATES) {
@@ -346,6 +386,7 @@ void ChunkManagement::run(entt::registry &registry) {
                             *chunkStatus.status = Components::ChunkStatusEnum::GENERATING_OR_LOADING;
                             auto &chunkData = registry.get<Components::ChunkData>(chunkEntity);
                             chunksCurrentlyGenerating++;
+                            updateNeighborChunksLocalFog(registry, chunkPosition);
                             pool.enqueue(&ChunkManagement::generateChunk, this, chunkStatus.status, chunkPosition.x, chunkPosition.y, chunkPosition.z, chunkData.data.data());
                             ++generates;
                         }
@@ -382,6 +423,7 @@ void ChunkManagement::run(entt::registry &registry) {
                                 for (int z = 0; z < 3; ++z) for (int y = 0; y < 3; ++y) for (int x = 0; x < 3; ++x) {
                                         (*neighborChunks)[x + y * 3 + z * 9] = getChunkData(registry, chunkPosition.x + x - 1, chunkPosition.y + y - 1, chunkPosition.z + z - 1).data.data();
                                     }
+                                updateNeighborChunksLocalFog(registry, chunkPosition);
                                 chunksCurrentlyMeshing++;
                                 pool.enqueue(&ChunkManagement::generateMeshInstTris, this, chunkStatus.status, chunkData.data.data(), chunkMeshDataTris.tris, neighborChunks);
 //                                pool.enqueue(&ChunkManagement::generateMeshGreedy, this, chunkStatus.status, chunkData.data.data(), chunkMeshDataTris.tris, neighborChunks);
@@ -399,6 +441,9 @@ void ChunkManagement::run(entt::registry &registry) {
                             genVboVaoAndBufferTris(registry, chunkEntity);
 #endif//TRI_MODE
                             *chunkStatus.status = Components::ChunkStatusEnum::MESH_BUFFERED;
+                            // add ChunkFog component and compute
+                            registry.emplace<Components::ChunkFog>(chunkEntity);
+                            updateNeighborChunksLocalFog(registry, chunkPosition);
                             ++buffers;
                         }
                         break;
@@ -450,9 +495,14 @@ void ChunkManagement::tryCreateChunk(entt::registry &registry, int xChunk, int y
 
 void ChunkManagement::tryRemoveChunk(entt::registry &registry, entt::entity chunkEntity) {
     auto [chunkStatus, chunkPosition] = registry.get<Components::ChunkStatus, Components::ChunkPosition>(chunkEntity);
+
     auto key = chunkPositionToKey(chunkPosition.x, chunkPosition.y, chunkPosition.z);
     // remove from unordered map
     chunkKeyToChunkEntity.erase(key);
+
+    // notify neighbors for fog update
+    updateNeighborChunksLocalFog(registry, chunkPosition);
+
     // try remove gl
     if (registry.has<Components::ChunkOpenGLInstanceVer>(chunkEntity)) {
         auto &chunkgl = registry.get<Components::ChunkOpenGLInstanceVer>(chunkEntity);
@@ -977,13 +1027,13 @@ void ChunkManagement::render(entt::registry &registry, TextureManager &tm, int s
                                 playerPos.pos.y + playerCam.posOffset.y - playerChunkPos.y * CHUNK_SIZE,
                                 playerPos.pos.z + playerCam.posOffset.z - playerChunkPos.z * CHUNK_SIZE);
 
-        auto renderableChunksTris = registry.group<Components::ChunkPosition, Components::ChunkOpenGLTriVer>(); // was view
+        auto renderableChunksTris = registry.group<Components::ChunkPosition, Components::ChunkOpenGLTriVer, Components::ChunkFog>(); // was view
 
         int drawCalls = 0;
         int triangles = 0;
         // render visible chunks
         for (auto c : renderableChunksTris) {
-            auto [chunkPos, chunkGL] = renderableChunksTris.get<Components::ChunkPosition, Components::ChunkOpenGLTriVer>(c);
+            auto [chunkPos, chunkGL, chunkFog] = renderableChunksTris.get<Components::ChunkPosition, Components::ChunkOpenGLTriVer, Components::ChunkFog>(c);
 
             if (chunkGL.numTriangles > 0) {
                 glm::vec4 chunkPoint((chunkPos.x - playerChunkPos.x) * CHUNK_SIZE + CHUNK_SIZE / 2, (chunkPos.y - playerChunkPos.y) * CHUNK_SIZE + CHUNK_SIZE / 2, (chunkPos.z - playerChunkPos.z) * CHUNK_SIZE + CHUNK_SIZE / 2, 1);
@@ -994,7 +1044,20 @@ void ChunkManagement::render(entt::registry &registry, TextureManager &tm, int s
                 chunkPointXYCut = chunkPointXYCut / chunkPointXYCut.w;
                 if (chunkPoint.z > 0 && chunkPointXYCut.x > -1 && chunkPointXYCut.x < 1 && chunkPointXYCut.y > -1 && chunkPointXYCut.y < 1) {
 //                    std::cout << chunkPoint.x << " " << chunkPoint.y << " " << chunkPoint.z << " " << chunkPoint.w << std::endl;
-                    voxelShader.setVec3i("chunkPos", chunkPos.x - playerChunkPos.x, chunkPos.y - playerChunkPos.y, chunkPos.z - playerChunkPos.z);
+                    voxelShaderTris.setVec3i("chunkPos", chunkPos.x - playerChunkPos.x, chunkPos.y - playerChunkPos.y, chunkPos.z - playerChunkPos.z);
+
+//                    std::cout << chunkFog.xMin << std::endl;
+//                    std::cout << chunkFog.xMax << std::endl;
+//                    std::cout << chunkFog.yMin << std::endl;
+//                    std::cout << chunkFog.yMax << std::endl;
+//                    std::cout << chunkFog.zMin << std::endl;
+//                    std::cout << chunkFog.zMax << std::endl;
+                    voxelShaderTris.setFloat("xMinFog", chunkFog.xMin ? 0.f: 1.f);
+                    voxelShaderTris.setFloat("xMaxFog", chunkFog.xMax ? 0.f: 1.f);
+                    voxelShaderTris.setFloat("yMinFog", chunkFog.yMin ? 0.f: 1.f);
+                    voxelShaderTris.setFloat("yMaxFog", chunkFog.yMax ? 0.f: 1.f);
+                    voxelShaderTris.setFloat("zMinFog", chunkFog.zMin ? 0.f: 1.f);
+                    voxelShaderTris.setFloat("zMaxFog", chunkFog.zMax ? 0.f: 1.f);
                     glBindVertexArray(chunkGL.vao);
                     glDrawArrays(GL_TRIANGLES, 0, chunkGL.numTriangles);
                     ++drawCalls;
@@ -1432,3 +1495,48 @@ float ChunkManagement::getFogDistance() {
     return fogDistance;
 }
 
+void ChunkManagement::updateChunkLocalFog(entt::registry &registry, entt::entity chunk) {
+    if (*registry.get<Components::ChunkStatus>(chunk).status == Components::ChunkStatusEnum::MESH_BUFFERED) {
+        auto chunkPos = registry.get<Components::ChunkPosition>(chunk);
+        auto &chunkFog = registry.get<Components::ChunkFog>(chunk);
+
+//        chunkFog.xMin = true;
+//        chunkFog.xMax = true;
+//        chunkFog.yMin = true;
+//        chunkFog.yMin = false;
+//        chunkFog.zMin = false;
+//        chunkFog.zMax = false;
+        chunkFog.xMin = isChunkFullyLoaded(registry, chunkPos.x - 1, chunkPos.y, chunkPos.z);
+        chunkFog.xMax = isChunkFullyLoaded(registry, chunkPos.x + 1, chunkPos.y, chunkPos.z);
+        chunkFog.yMin = isChunkFullyLoaded(registry, chunkPos.x, chunkPos.y - 1, chunkPos.z);
+        chunkFog.yMax = isChunkFullyLoaded(registry, chunkPos.x, chunkPos.y + 1, chunkPos.z);
+        chunkFog.zMin = isChunkFullyLoaded(registry, chunkPos.x, chunkPos.y, chunkPos.z - 1);
+        chunkFog.zMax = isChunkFullyLoaded(registry, chunkPos.x, chunkPos.y, chunkPos.z + 1);
+
+    }
+
+}
+
+void ChunkManagement::updateNeighborChunksLocalFog(entt::registry &registry, Components::ChunkPosition &chunkPos) {
+    if (chunkKeyToChunkEntity.contains(chunkPositionToKey(chunkPos.x, chunkPos.y, chunkPos.z))) {
+        updateChunkLocalFog(registry, chunkKeyToChunkEntity[chunkPositionToKey(chunkPos.x, chunkPos.y, chunkPos.z)]);
+    }
+    if (chunkKeyToChunkEntity.contains(chunkPositionToKey(chunkPos.x - 1, chunkPos.y, chunkPos.z))) {
+        updateChunkLocalFog(registry, chunkKeyToChunkEntity[chunkPositionToKey(chunkPos.x - 1, chunkPos.y, chunkPos.z)]);
+    }
+    if (chunkKeyToChunkEntity.contains(chunkPositionToKey(chunkPos.x + 1, chunkPos.y, chunkPos.z))) {
+        updateChunkLocalFog(registry, chunkKeyToChunkEntity[chunkPositionToKey(chunkPos.x + 1, chunkPos.y, chunkPos.z)]);
+    }
+    if (chunkKeyToChunkEntity.contains(chunkPositionToKey(chunkPos.x, chunkPos.y - 1, chunkPos.z))) {
+        updateChunkLocalFog(registry, chunkKeyToChunkEntity[chunkPositionToKey(chunkPos.x, chunkPos.y - 1, chunkPos.z)]);
+    }
+    if (chunkKeyToChunkEntity.contains(chunkPositionToKey(chunkPos.x, chunkPos.y + 1, chunkPos.z))) {
+        updateChunkLocalFog(registry, chunkKeyToChunkEntity[chunkPositionToKey(chunkPos.x, chunkPos.y + 1, chunkPos.z)]);
+    }
+    if (chunkKeyToChunkEntity.contains(chunkPositionToKey(chunkPos.x, chunkPos.y, chunkPos.z - 1))) {
+        updateChunkLocalFog(registry, chunkKeyToChunkEntity[chunkPositionToKey(chunkPos.x, chunkPos.y, chunkPos.z - 1)]);
+    }
+    if (chunkKeyToChunkEntity.contains(chunkPositionToKey(chunkPos.x, chunkPos.y, chunkPos.z + 1))) {
+        updateChunkLocalFog(registry, chunkKeyToChunkEntity[chunkPositionToKey(chunkPos.x, chunkPos.y, chunkPos.z + 1)]);
+    }
+}

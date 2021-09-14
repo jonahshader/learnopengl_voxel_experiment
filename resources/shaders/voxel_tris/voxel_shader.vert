@@ -21,6 +21,13 @@ uniform vec3 camPos;
 uniform uint chunkSize;
 uniform float fogDistance;
 
+uniform float xMinFog;
+uniform float xMaxFog;
+uniform float yMinFog;
+uniform float yMaxFog;
+uniform float zMinFog;
+uniform float zMaxFog;
+
 
 void main()
 {
@@ -32,6 +39,13 @@ void main()
     texture_ = texture;
     normal_ = normInt;
     brightness_ = (MIN_BRIGHTNESS + (float(b + 0.0f) / (MAX_BRIGHTNESS + 0.0f))) / (1.0f + MIN_BRIGHTNESS);
-    fogMix_ = pow(min(length(posBeforeTransform - camPos) / fogDistance, 1.0f), 2.0f);
-//    fogMix_ = min(length(posBeforeTransform - camPos) / fogDistance, 1.0f);
+    float globalFogMix = pow(min(length(posBeforeTransform - camPos) / (fogDistance * 2), 1.0f), 2.0f); // the times 2 is temporary
+
+    float xChunkLocalFogMix = mix(xMinFog, xMaxFog, float(xyz.x) / chunkSize);
+    float yChunkLocalFogMix = mix(yMinFog, yMaxFog, float(xyz.y) / chunkSize);
+    float zChunkLocalFogMix = mix(zMinFog, zMaxFog, float(xyz.z) / chunkSize);
+    float chunkLocalFogMix = max(max(xChunkLocalFogMix, yChunkLocalFogMix), zChunkLocalFogMix);
+//    fogMix_ = max(globalFogMix, chunkLocalFogMix);
+//    fogMix_ = globalFogMix * .5f + chunkLocalFogMix * .5f;
+    fogMix_ = chunkLocalFogMix;
 }

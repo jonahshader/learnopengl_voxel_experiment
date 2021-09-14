@@ -95,7 +95,11 @@ void Shader::setUInt(const std::string &name, unsigned int value) const {
 }
 
 void Shader::setFloat(const std::string &name, float value) const {
-    glUniform1f(glGetUniformLocation(ID, name.c_str()), value);
+    auto location = glGetUniformLocation(ID, name.c_str());
+    if (location < 0) {
+        std:: cout << "ERROR: Uniform location now found! Location: " << location << " Name: " << name << std::endl;
+    }
+    glUniform1f(location, value);
 }
 
 void Shader::setMatrix4(const std::string &name, glm::mat4 value) const {

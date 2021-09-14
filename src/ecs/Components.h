@@ -52,6 +52,15 @@ public:
         volatile bool* markedForRemoval;
     };
 
+    struct ChunkFog {
+        bool xMin;
+        bool xMax;
+        bool yMin;
+        bool yMax;
+        bool zMin;
+        bool zMax;
+    };
+
     struct ChunkMeshData {
         std::vector<unsigned char>* offsets;
         std::vector<unsigned char>* dims;
