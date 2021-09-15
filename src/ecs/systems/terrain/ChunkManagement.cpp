@@ -20,6 +20,7 @@ ChunkManagement::ChunkManagement(const char* vertexPathInstVer, const char* frag
                                  std::mt19937_64 &seeder) :
         chunkKeyToChunkEntity(),
         chunks(),
+        sortedChunkPositionLoadSphere(),
         pool(MAX_CONCURRENT_GENERATES + 1 + MAX_CONCURRENT_MESH_GENS),
         voxelShader(vertexPathInstVer, fragmentPathInstVer),
         voxelShaderTris(vertexPathTriVer, fragmentPathTriVer),
@@ -39,6 +40,7 @@ ChunkManagement::ChunkManagement(const char* vertexPathInstVer, const char* frag
         chunksCurrentlyMeshing(0),
         cubeVbo(0)
 {
+    computeSortedChunkPositionLoadSphere();
     std::mt19937 mt(seeder());
     std::uniform_int_distribution intDist;
 
@@ -160,7 +162,7 @@ bool ChunkManagement::isChunkFullyLoaded(entt::registry &registry, int xChunk, i
                 return false;
             }
         } else {
-//            std::cout << "doesn't have mesh status" << std::endl;
+            std::cout << "doesn't have mesh status" << std::endl;
             return false;
         }
     }
@@ -234,74 +236,84 @@ void ChunkManagement::run(entt::registry &registry) {
         // find player location
         auto &playerPos = registry.get<Components::Position>(player);
         auto &playerChunkPos = registry.get<Components::ChunkPosition>(player);
-        // calculate load bounds for the chunk generate loop
-        int cRadius = ceil(CHUNK_LOAD_RADIUS / (double) CHUNK_SIZE);
-        int xCMin = playerChunkPos.x - cRadius;
-        int xCMax = playerChunkPos.x + cRadius;
-        int yCMin = playerChunkPos.y - cRadius;
-        int yCMax = playerChunkPos.y + cRadius;
-        int zCMin = playerChunkPos.z - cRadius;
-        int zCMax = playerChunkPos.z + cRadius;
 
-        for (int x = 0; x <= cRadius; ++x) {
-            for (int y = 0; y <= cRadius; ++y) {
-                for (int z = 0; z <= cRadius; ++z) {
-                    int xx = playerChunkPos.x + x;
-                    int yy = playerChunkPos.y + y;
-                    int zz = playerChunkPos.z + z;
-                    int xxi = playerChunkPos.x - x;
-                    int yyi = playerChunkPos.y - y;
-                    int zzi = playerChunkPos.z - z;
-                    double dist = worldPosChunkPosDist2(xx, yy, zz, playerPos.pos.x, playerPos.pos.y, playerPos.pos.z);
-                    if (dist < CHUNK_LOAD_RADIUS * CHUNK_LOAD_RADIUS) {
-                        // try create
-                        tryCreateChunk(registry, xx, yy, zz);
-                    }
 
-                    dist = worldPosChunkPosDist2(xxi, yy, zz, playerPos.pos.x, playerPos.pos.y, playerPos.pos.z);
-                    if (dist < CHUNK_LOAD_RADIUS * CHUNK_LOAD_RADIUS) {
-                        // try create
-                        tryCreateChunk(registry, xxi, yy, zz);
-                    }
 
-                    dist = worldPosChunkPosDist2(xx, yyi, zz, playerPos.pos.x, playerPos.pos.y, playerPos.pos.z);
-                    if (dist < CHUNK_LOAD_RADIUS * CHUNK_LOAD_RADIUS) {
-                        // try create
-                        tryCreateChunk(registry, xx, yyi, zz);
-                    }
-
-                    dist = worldPosChunkPosDist2(xxi, yyi, zz, playerPos.pos.x, playerPos.pos.y, playerPos.pos.z);
-                    if (dist < CHUNK_LOAD_RADIUS * CHUNK_LOAD_RADIUS) {
-                        // try create
-                        tryCreateChunk(registry, xxi, yyi, zz);
-                    }
-
-                    dist = worldPosChunkPosDist2(xx, yy, zzi, playerPos.pos.x, playerPos.pos.y, playerPos.pos.z);
-                    if (dist < CHUNK_LOAD_RADIUS * CHUNK_LOAD_RADIUS) {
-                        // try create
-                        tryCreateChunk(registry, xx, yy, zzi);
-                    }
-
-                    dist = worldPosChunkPosDist2(xxi, yy, zzi, playerPos.pos.x, playerPos.pos.y, playerPos.pos.z);
-                    if (dist < CHUNK_LOAD_RADIUS * CHUNK_LOAD_RADIUS) {
-                        // try create
-                        tryCreateChunk(registry, xxi, yy, zzi);
-                    }
-
-                    dist = worldPosChunkPosDist2(xx, yyi, zzi, playerPos.pos.x, playerPos.pos.y, playerPos.pos.z);
-                    if (dist < CHUNK_LOAD_RADIUS * CHUNK_LOAD_RADIUS) {
-                        // try create
-                        tryCreateChunk(registry, xx, yyi, zzi);
-                    }
-
-                    dist = worldPosChunkPosDist2(xxi, yyi, zzi, playerPos.pos.x, playerPos.pos.y, playerPos.pos.z);
-                    if (dist < CHUNK_LOAD_RADIUS * CHUNK_LOAD_RADIUS) {
-                        // try create
-                        tryCreateChunk(registry, xxi, yyi, zzi);
-                    }
-                }
-            }
+        for (auto& posInSphere : sortedChunkPositionLoadSphere) {
+            tryCreateChunk(registry,
+                           playerChunkPos.x + posInSphere.x,
+                           playerChunkPos.y + posInSphere.y,
+                           playerChunkPos.z + posInSphere.z);
         }
+
+        // calculate load bounds for the chunk generate loop
+//        int cRadius = ceil(CHUNK_LOAD_RADIUS / (double) CHUNK_SIZE);
+//        int xCMin = playerChunkPos.x - cRadius;
+//        int xCMax = playerChunkPos.x + cRadius;
+//        int yCMin = playerChunkPos.y - cRadius;
+//        int yCMax = playerChunkPos.y + cRadius;
+//        int zCMin = playerChunkPos.z - cRadius;
+//        int zCMax = playerChunkPos.z + cRadius;
+
+//        for (int x = 0; x <= cRadius; ++x) {
+//            for (int y = 0; y <= cRadius; ++y) {
+//                for (int z = 0; z <= cRadius; ++z) {
+//                    int xx = playerChunkPos.x + x;
+//                    int yy = playerChunkPos.y + y;
+//                    int zz = playerChunkPos.z + z;
+//                    int xxi = playerChunkPos.x - x;
+//                    int yyi = playerChunkPos.y - y;
+//                    int zzi = playerChunkPos.z - z;
+//                    double dist = worldPosChunkPosDist2(xx, yy, zz, playerPos.pos.x, playerPos.pos.y, playerPos.pos.z);
+//                    if (dist < CHUNK_LOAD_RADIUS * CHUNK_LOAD_RADIUS) {
+//                        // try create
+//                        tryCreateChunk(registry, xx, yy, zz);
+//                    }
+//
+//                    dist = worldPosChunkPosDist2(xxi, yy, zz, playerPos.pos.x, playerPos.pos.y, playerPos.pos.z);
+//                    if (dist < CHUNK_LOAD_RADIUS * CHUNK_LOAD_RADIUS) {
+//                        // try create
+//                        tryCreateChunk(registry, xxi, yy, zz);
+//                    }
+//
+//                    dist = worldPosChunkPosDist2(xx, yyi, zz, playerPos.pos.x, playerPos.pos.y, playerPos.pos.z);
+//                    if (dist < CHUNK_LOAD_RADIUS * CHUNK_LOAD_RADIUS) {
+//                        // try create
+//                        tryCreateChunk(registry, xx, yyi, zz);
+//                    }
+//
+//                    dist = worldPosChunkPosDist2(xxi, yyi, zz, playerPos.pos.x, playerPos.pos.y, playerPos.pos.z);
+//                    if (dist < CHUNK_LOAD_RADIUS * CHUNK_LOAD_RADIUS) {
+//                        // try create
+//                        tryCreateChunk(registry, xxi, yyi, zz);
+//                    }
+//
+//                    dist = worldPosChunkPosDist2(xx, yy, zzi, playerPos.pos.x, playerPos.pos.y, playerPos.pos.z);
+//                    if (dist < CHUNK_LOAD_RADIUS * CHUNK_LOAD_RADIUS) {
+//                        // try create
+//                        tryCreateChunk(registry, xx, yy, zzi);
+//                    }
+//
+//                    dist = worldPosChunkPosDist2(xxi, yy, zzi, playerPos.pos.x, playerPos.pos.y, playerPos.pos.z);
+//                    if (dist < CHUNK_LOAD_RADIUS * CHUNK_LOAD_RADIUS) {
+//                        // try create
+//                        tryCreateChunk(registry, xxi, yy, zzi);
+//                    }
+//
+//                    dist = worldPosChunkPosDist2(xx, yyi, zzi, playerPos.pos.x, playerPos.pos.y, playerPos.pos.z);
+//                    if (dist < CHUNK_LOAD_RADIUS * CHUNK_LOAD_RADIUS) {
+//                        // try create
+//                        tryCreateChunk(registry, xx, yyi, zzi);
+//                    }
+//
+//                    dist = worldPosChunkPosDist2(xxi, yyi, zzi, playerPos.pos.x, playerPos.pos.y, playerPos.pos.z);
+//                    if (dist < CHUNK_LOAD_RADIUS * CHUNK_LOAD_RADIUS) {
+//                        // try create
+//                        tryCreateChunk(registry, xxi, yyi, zzi);
+//                    }
+//                }
+//            }
+//        }
 
         /*
          * TODO:
@@ -455,6 +467,9 @@ void ChunkManagement::run(entt::registry &registry) {
             }
         }
         Profiler::getInstance()->end("progress_chunk_stages");
+
+
+
         Profiler::getInstance()->start("erase_chunks");
         //
 //        std::cout << "Process time: " << glfwGetTime() - processTime << std::endl;
@@ -473,6 +488,9 @@ void ChunkManagement::run(entt::registry &registry) {
             }
         }
         Profiler::getInstance()->end("erase_chunks");
+
+        auto renderableChunksTris = registry.group<Components::ChunkPosition, Components::ChunkOpenGLTriVer, Components::ChunkFog>();
+
     }
 }
 
@@ -594,6 +612,11 @@ bool ChunkManagement::chunkCompareFun(entt::entity chunk1, entt::entity chunk2) 
     double dist1 = worldPosChunkPosDist2(chunkCompareRegistry->get<Components::ChunkPosition>(chunk1), chunkComparePos);
     double dist2 = worldPosChunkPosDist2(chunkCompareRegistry->get<Components::ChunkPosition>(chunk2), chunkComparePos);
     return dist1 < dist2;
+}
+
+bool ChunkManagement::chunkPosCompareFun(Components::ChunkPosition chunk1, Components::ChunkPosition chunk2) {
+    return (chunk1.x * chunk1.x) + (chunk1.y * chunk1.y) + (chunk1.z * chunk1.z) <
+    (chunk2.x * chunk2.x) + (chunk2.y * chunk2.y) + (chunk2.z * chunk2.z);
 }
 
 void ChunkManagement::generateChunk(volatile Components::ChunkStatusEnum* chunkStatus, int xChunk, int yChunk, int zChunk,
@@ -1029,6 +1052,14 @@ void ChunkManagement::render(entt::registry &registry, TextureManager &tm, int s
                                 playerPos.pos.z + playerCam.posOffset.z - playerChunkPos.z * CHUNK_SIZE);
 
         auto renderableChunksTris = registry.group<Components::ChunkPosition, Components::ChunkOpenGLTriVer, Components::ChunkFog>(); // was view
+        for (auto c : renderableChunksTris) {
+            auto[chunkPos, chunkGL, chunkFog] = renderableChunksTris.get<Components::ChunkPosition, Components::ChunkOpenGLTriVer, Components::ChunkFog>(c);
+
+            bool needUpdateVal = true;
+            if (chunkFog.xMin == needUpdateVal || chunkFog.xMax == needUpdateVal || chunkFog.yMin == needUpdateVal || chunkFog.yMax == needUpdateVal || chunkFog.zMin == needUpdateVal || chunkFog.zMax == needUpdateVal) {
+                updateChunkLocalFog(registry, c);
+            }
+        }
 
         int drawCalls = 0;
         int triangles = 0;
@@ -1540,4 +1571,22 @@ void ChunkManagement::updateNeighborChunksLocalFog(entt::registry &registry, Com
     if (chunkKeyToChunkEntity.contains(chunkPositionToKey(chunkPos.x, chunkPos.y, chunkPos.z + 1))) {
         updateChunkLocalFog(registry, chunkKeyToChunkEntity[chunkPositionToKey(chunkPos.x, chunkPos.y, chunkPos.z + 1)]);
     }
+}
+
+void ChunkManagement::computeSortedChunkPositionLoadSphere() {
+    int cRadius = ceil(CHUNK_LOAD_RADIUS / (double) CHUNK_SIZE);
+    for (int x = -cRadius; x <= cRadius; ++x) {
+        for (int y = -cRadius; y <= cRadius; ++y) {
+            for (int z = -cRadius; z <= cRadius; ++z) {
+                double length2 = worldPosChunkPosDist2(x, y, z, .0, .0, .0);
+                if (length2 < CHUNK_LOAD_RADIUS * CHUNK_LOAD_RADIUS) {
+                    // push into array
+                    sortedChunkPositionLoadSphere.emplace_back(Components::ChunkPosition{x, y, z});
+                }
+            }
+        }
+    }
+
+    // sort it
+    std::sort(sortedChunkPositionLoadSphere.begin(), sortedChunkPositionLoadSphere.end(), chunkPosCompareFun);
 }

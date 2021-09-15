@@ -73,6 +73,8 @@ private:
     std::unordered_map<chunkKey, entt::entity, ArrayHasher> chunkKeyToChunkEntity;
     std::vector<entt::entity> chunks;
 
+    std::vector<Components::ChunkPosition> sortedChunkPositionLoadSphere;
+
     ThreadPool pool;
 
     Shader voxelShader, voxelShaderTris;
@@ -147,6 +149,7 @@ private:
     static Components::Position chunkComparePos;
     static entt::registry* chunkCompareRegistry;
     static bool chunkCompareFun(entt::entity chunk1, entt::entity chunk2);
+    static bool chunkPosCompareFun(Components::ChunkPosition chunk1, Components::ChunkPosition chunk2);
     // assumes chunk entity already has ChunkData, ChunkStatus,
     void generateChunk(volatile Components::ChunkStatusEnum* chunkStatus, int xChunk, int yChunk, int zChunk,
                        blockid* chunkData);
@@ -185,6 +188,7 @@ private:
 
     void updateChunkLocalFog(entt::registry &registry, entt::entity chunk);
     void updateNeighborChunksLocalFog(entt::registry &registry, Components::ChunkPosition &chunkPos);
+    void computeSortedChunkPositionLoadSphere();
 };
 
 

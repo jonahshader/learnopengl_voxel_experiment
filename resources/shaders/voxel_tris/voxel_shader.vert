@@ -41,11 +41,12 @@ void main()
     brightness_ = (MIN_BRIGHTNESS + (float(b + 0.0f) / (MAX_BRIGHTNESS + 0.0f))) / (1.0f + MIN_BRIGHTNESS);
     float globalFogMix = pow(min(length(posBeforeTransform - camPos) / (fogDistance * 2), 1.0f), 2.0f); // the times 2 is temporary
 
-    float xChunkLocalFogMix = mix(xMinFog, xMaxFog, float(xyz.x) / chunkSize);
-    float yChunkLocalFogMix = mix(yMinFog, yMaxFog, float(xyz.y) / chunkSize);
-    float zChunkLocalFogMix = mix(zMinFog, zMaxFog, float(xyz.z) / chunkSize);
-    float chunkLocalFogMix = max(max(xChunkLocalFogMix, yChunkLocalFogMix), zChunkLocalFogMix);
+    float xChunkLocalFogMix = 1.0f-mix(xMinFog, xMaxFog, float(xyz.x) / chunkSize);
+    float yChunkLocalFogMix = 1.0f-mix(yMinFog, yMaxFog, float(xyz.y) / chunkSize);
+    float zChunkLocalFogMix = 1.0f-mix(zMinFog, zMaxFog, float(xyz.z) / chunkSize);
+//    float chunkLocalFogMix = max(max(xChunkLocalFogMix, yChunkLocalFogMix), zChunkLocalFogMix);
+    float chunkLocalFogMix = 1.0f - (xChunkLocalFogMix * yChunkLocalFogMix * zChunkLocalFogMix);
 //    fogMix_ = max(globalFogMix, chunkLocalFogMix);
-//    fogMix_ = globalFogMix * .5f + chunkLocalFogMix * .5f;
-    fogMix_ = chunkLocalFogMix;
+    fogMix_ = globalFogMix * .25f + chunkLocalFogMix * .75f;
+//    fogMix_ = chunkLocalFogMix;
 }

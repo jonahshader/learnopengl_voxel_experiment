@@ -53,7 +53,7 @@ public:
     };
 
     struct ChunkFog {
-        bool xMin;
+        bool xMin; // false = clear, true = fog
         bool xMax;
         bool yMin;
         bool yMax;
