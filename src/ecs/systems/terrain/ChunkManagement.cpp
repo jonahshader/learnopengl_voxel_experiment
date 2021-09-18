@@ -133,8 +133,8 @@ bool ChunkManagement::isChunkDataLoaded(entt::registry &registry, int xChunk, in
     } else {
         if (registry.has<Components::ChunkStatus>(found->second)) {
             auto &status = registry.get<Components::ChunkStatus>(found->second);
-            if (*status.status != Components::ChunkStatusEnum::NEW &&
-                    *status.status != Components::ChunkStatusEnum::GENERATING_OR_LOADING) {
+            if (status.status != Components::ChunkStatusEnum::NEW &&
+                    status.status != Components::ChunkStatusEnum::GENERATING_OR_LOADING) {
                 return true;
             } else {
                 return false;
@@ -154,7 +154,7 @@ bool ChunkManagement::isChunkFullyLoaded(entt::registry &registry, int xChunk, i
     } else {
         if (registry.has<Components::ChunkStatus>(found->second)) {
             auto &status = registry.get<Components::ChunkStatus>(found->second);
-            if (*status.status == Components::ChunkStatusEnum::MESH_BUFFERED) {
+            if (status.status == Components::ChunkStatusEnum::MESH_BUFFERED) {
 //                std::cout << "success!" << std::endl;
                 return true;
             } else {
@@ -371,14 +371,14 @@ void ChunkManagement::run(entt::registry &registry) {
             // as long as these chunks are within the unload radius, they can continue loading
             // TODO: reverse this so that distance starts at zero and goes up to the greatest distance
             // local fog chunk will remove visible chunk seams
-            if (*chunkStatus.status != Components::ChunkStatusEnum::MESH_BUFFERED) {
+            if (chunkStatus.status != Components::ChunkStatusEnum::MESH_BUFFERED) {
                 float dist = worldPosChunkPosDist(chunkPosition, playerPos);
                 if (dist < fogDistance)
                     fogDistance = dist;
             }
 
-            if (*chunkStatus.markedForRemoval) {
-                switch (*chunkStatus.status) {
+            if (chunkStatus.markedForRemoval) {
+                switch (chunkStatus.status) {
                     case Components::ChunkStatusEnum::NEW:
                     case Components::ChunkStatusEnum::GENERATED_OR_LOADED:
                     case Components::ChunkStatusEnum::MESH_GENERATED:
@@ -391,15 +391,15 @@ void ChunkManagement::run(entt::registry &registry) {
                 }
             } else if (worldPosChunkPosDist2(chunkPosition, playerPos) < CHUNK_UNLOAD_RADIUS * CHUNK_UNLOAD_RADIUS) {
                 // figure out what the status of this chunk is and make it move to the next stage
-                switch (*chunkStatus.status) {
+                switch (chunkStatus.status) {
                     case Components::ChunkStatusEnum::NEW:
                         if (generates < MAX_GENERATES_PER_FRAME && chunksCurrentlyGenerating < MAX_CONCURRENT_GENERATES) {
                             registry.emplace<Components::ChunkData>(chunkEntity, std::vector<blockid>(VOXELS_PER_CHUNK)); // add chunk data
-                            *chunkStatus.status = Components::ChunkStatusEnum::GENERATING_OR_LOADING;
+                            chunkStatus.status = Components::ChunkStatusEnum::GENERATING_OR_LOADING;
                             auto &chunkData = registry.get<Components::ChunkData>(chunkEntity);
                             chunksCurrentlyGenerating++;
 //                            updateNeighborChunksLocalFog(registry, chunkPosition);
-                            pool.enqueue(&ChunkManagement::generateChunk, this, chunkStatus.status, chunkPosition.x, chunkPosition.y, chunkPosition.z, chunkData.data.data());
+                            pool.enqueue(&ChunkManagement::generateChunk, this, &chunkStatus.status, chunkPosition.x, chunkPosition.y, chunkPosition.z, chunkData.data.data());
                             ++generates;
                         }
                         break;
@@ -428,7 +428,7 @@ void ChunkManagement::run(entt::registry &registry) {
 #ifdef TRI_MODE
                                 // add tri mesh data
                                 registry.emplace<Components::ChunkMeshDataTris>(chunkEntity, new std::vector<unsigned char>());
-                                *chunkStatus.status = Components::ChunkStatusEnum::MESH_GENERATING;
+                                chunkStatus.status = Components::ChunkStatusEnum::MESH_GENERATING;
                                 auto [chunkData, chunkMeshDataTris] = registry.get<Components::ChunkData, Components::ChunkMeshDataTris>(chunkEntity);
 
                                 std::vector<blockid*>* neighborChunks = new std::vector<blockid*>(27);
@@ -437,7 +437,7 @@ void ChunkManagement::run(entt::registry &registry) {
                                     }
 //                                updateNeighborChunksLocalFog(registry, chunkPosition);
                                 chunksCurrentlyMeshing++;
-                                pool.enqueue(&ChunkManagement::generateMeshInstTris, this, chunkStatus.status, chunkData.data.data(), chunkMeshDataTris.tris, neighborChunks);
+                                pool.enqueue(&ChunkManagement::generateMeshInstTris, this, &chunkStatus.status, chunkData.data.data(), chunkMeshDataTris.tris, neighborChunks);
 //                                pool.enqueue(&ChunkManagement::generateMeshGreedy, this, chunkStatus.status, chunkData.data.data(), chunkMeshDataTris.tris, neighborChunks);
 #endif//TRI_MODE
                             }
@@ -452,7 +452,7 @@ void ChunkManagement::run(entt::registry &registry) {
 #ifdef TRI_MODE
                             genVboVaoAndBufferTris(registry, chunkEntity);
 #endif//TRI_MODE
-                            *chunkStatus.status = Components::ChunkStatusEnum::MESH_BUFFERED;
+                            chunkStatus.status = Components::ChunkStatusEnum::MESH_BUFFERED;
                             // add ChunkFog component and compute
                             registry.emplace<Components::ChunkFog>(chunkEntity);
                             updateNeighborChunksLocalFog(registry, chunkPosition);
@@ -463,7 +463,7 @@ void ChunkManagement::run(entt::registry &registry) {
                         break;
                 }
             } else { // these are outside of the unload radius, so they will be queued for removal
-                *chunkStatus.markedForRemoval = true;
+                chunkStatus.markedForRemoval = true;
             }
         }
         Profiler::getInstance()->end("progress_chunk_stages");
@@ -501,7 +501,7 @@ void ChunkManagement::tryCreateChunk(entt::registry &registry, int xChunk, int y
     // if a chunk with this position is not already here, continue making the new chunk entity
     if (found == chunkKeyToChunkEntity.end()) {
         auto entity = registry.create();
-        registry.emplace<Components::ChunkStatus>(entity, new Components::ChunkStatusEnum{Components::ChunkStatusEnum::NEW}, new bool(false));
+        registry.emplace<Components::ChunkStatus>(entity, Components::ChunkStatusEnum{Components::ChunkStatusEnum::NEW}, false);
         registry.emplace<Components::ChunkPosition>(entity, xChunk, yChunk, zChunk);
 
         chunks.emplace_back(entity);
@@ -565,10 +565,6 @@ void ChunkManagement::tryRemoveChunk(entt::registry &registry, entt::entity chun
 //    if (registry.has<Components::ChunkData>(chunkEntity)) {
 //        auto &chunkData = registry.get<Components::ChunkData>(chunkEntity);
 //    }
-    delete chunkStatus.status;
-    chunkStatus.status = nullptr;
-    delete chunkStatus.markedForRemoval;
-    chunkStatus.markedForRemoval = nullptr;
 
     // remove from registry
     registry.destroy(chunkEntity);
@@ -1129,9 +1125,9 @@ bool ChunkManagement::chunkHasData(entt::registry &registry, int xChunk, int yCh
     if (found != chunkKeyToChunkEntity.end()) {
         auto chunkEntity = chunkKeyToChunkEntity[key];
         auto &chunkStatus = registry.get<Components::ChunkStatus>(chunkEntity);
-        if (*chunkStatus.status == Components::ChunkStatusEnum::GENERATED_OR_LOADED ||
-                *chunkStatus.status == Components::ChunkStatusEnum::MESH_GENERATED ||
-                *chunkStatus.status == Components::ChunkStatusEnum::MESH_BUFFERED) {
+        if (chunkStatus.status == Components::ChunkStatusEnum::GENERATED_OR_LOADED ||
+                chunkStatus.status == Components::ChunkStatusEnum::MESH_GENERATED ||
+                chunkStatus.status == Components::ChunkStatusEnum::MESH_BUFFERED) {
             return true;
         } else {
             return false;
@@ -1528,7 +1524,7 @@ float ChunkManagement::getFogDistance() {
 }
 
 void ChunkManagement::updateChunkLocalFog(entt::registry &registry, entt::entity chunk) {
-    if (*registry.get<Components::ChunkStatus>(chunk).status == Components::ChunkStatusEnum::MESH_BUFFERED) {
+    if (registry.get<Components::ChunkStatus>(chunk).status == Components::ChunkStatusEnum::MESH_BUFFERED) {
         auto chunkPos = registry.get<Components::ChunkPosition>(chunk);
         auto &chunkFog = registry.get<Components::ChunkFog>(chunk);
 

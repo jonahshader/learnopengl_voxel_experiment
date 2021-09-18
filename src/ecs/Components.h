@@ -48,8 +48,8 @@ public:
     };
 
     struct ChunkStatus {
-        volatile ChunkStatusEnum* status;
-        volatile bool* markedForRemoval;
+        volatile ChunkStatusEnum status;
+        volatile bool markedForRemoval;
     };
 
     struct ChunkFog {
