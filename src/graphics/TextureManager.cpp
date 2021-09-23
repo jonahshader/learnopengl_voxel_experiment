@@ -210,6 +210,7 @@ void TextureManager::addSpriteArray(std::string pathToImage, std::string pathToA
     ++textureUnitsUsed;
 }
 
+
 TextureManager::TextureInSpriteSheet TextureManager::getTextureInfoSS(std::string textureName) {
     return nameToSSInfo[textureName];
 }
@@ -221,3 +222,4 @@ TextureManager::TextureInArray TextureManager::getTextureInfoA(std::string textu
 TextureManager::TextureDimensions TextureManager::getTextureDimensions(int texture) {
     return texDims[texture];
 }
+
