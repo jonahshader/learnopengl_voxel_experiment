@@ -223,3 +223,8 @@ TextureManager::TextureDimensions TextureManager::getTextureDimensions(int textu
     return texDims[texture];
 }
 
+void TextureManager::combineSpritesIntoArray(std::vector<std::string> imagePaths) {
+    std::vector<unsigned char> data;
+
+}
+

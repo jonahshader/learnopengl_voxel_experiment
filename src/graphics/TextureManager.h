@@ -30,6 +30,7 @@ public:
 
     void addSpriteSheet(std::string pathToImage, std::string pathToAtlas);
     void addSpriteArray(std::string pathToImage, std::string pathToAtlas);
+    void combineSpritesIntoArray(std::vector<std::string> imagePaths);
 
     TextureDimensions getTextureDimensions(int texture);
 
