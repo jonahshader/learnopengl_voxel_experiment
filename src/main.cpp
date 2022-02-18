@@ -36,7 +36,7 @@ int main() {
     glfwGetMonitorWorkarea(glfwGetPrimaryMonitor(), NULL, NULL, &screenWidthGlobal, &screenHeightGlobal);
 
     GLFWwindow* window = glfwCreateWindow(screenWidthGlobal, screenHeightGlobal, "Voxel Engine Test", glfwGetPrimaryMonitor(), NULL);
-//    GLFWwindow* window = glfwCreateWindow(screenWidthGlobal/2, screenHeightGlobal/2, "Voxel Engine Test", NULL, NULL);
+//    GLFWwindow* window = glfwCreateWindow(1920, 1080, "Voxel Engine Test", NULL, NULL);
     if (window == NULL)
     {
         std::cout << "Failed to create GLFW window" << std::endl;
